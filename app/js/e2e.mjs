@@ -163,5 +163,36 @@ assert(!(await page.locator('#btn-undo').isDisabled()), 'undo should enable');
 await page.locator('#btn-undo').click();
 await page.waitForTimeout(200);
 
+assert(await page.locator('#btn-capitalize').count(), 'capitalize button missing');
+await page.evaluate((key) => {
+  const raw = localStorage.getItem('farwest-dialogue-characters-v1');
+  const data = JSON.parse(raw);
+  const ch = data.characters[data.characterIndex];
+  const day = ch.days[ch.dayIndex ?? 0];
+  day.fields[key] = "it's duke. i KNOW it's cool";
+  localStorage.setItem('farwest-dialogue-characters-v1', JSON.stringify(data));
+}, line1Key);
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(400);
+await page.locator('#btn-capitalize').click();
+await page.waitForTimeout(400);
+const capped = await page.locator(`.visual-line[data-key="${line1Key}"]`).evaluate((el) => {
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return node.parentElement?.closest('.fx-balloon')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  let t = '';
+  let n;
+  while ((n = walk.nextNode())) t += n.textContent;
+  return t;
+});
+assert(
+  capped === "It's duke. I know it's cool",
+  `capitalize failed: ${JSON.stringify(capped)}`
+);
+
 console.log('E2E OK');
 await browser.close();
