@@ -11,10 +11,11 @@
   --line: #fffdf8;
   --shadow: 0 6px 0 rgba(28, 36, 48, 0.12);
   --radius: 16px;
-  --fx-very-slow: #9ec5fe;
+  --fx-super-slow: #9ec5fe;
   --fx-slow: #b8f0e0;
   --fx-shake: #ffe08a;
   --fx-strong: #ff9b7a;
+  --fx-orphan: #f3b4b4;
   --danger: #e05d5d;
   --ok: #3aa76d;
 }
@@ -187,8 +188,8 @@ body { min-height: 100vh; }
   flex-shrink: 0;
   box-shadow: inset 0 0 0 2px rgba(0,0,0,0.06);
 }
-.stamp-very-slow .stamp-swatch { background: var(--fx-very-slow); }
 .stamp-slow .stamp-swatch { background: var(--fx-slow); }
+.stamp-super-slow .stamp-swatch { background: var(--fx-super-slow); }
 .stamp-shake .stamp-swatch { background: var(--fx-shake); }
 .stamp-strong .stamp-swatch { background: var(--fx-strong); }
 .stamp-reset .stamp-swatch { background: #d7d2c8; }
@@ -447,14 +448,34 @@ body { min-height: 100vh; }
 }
 
 .fx-plain { background: transparent; }
-.fx-very-slow {
-  background: var(--fx-very-slow);
+
+/* Value chip via ::before so it never enters the editable text */
+.visual-line [data-value]::before {
+  content: attr(data-value);
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1;
+  vertical-align: 0.15em;
+  margin-right: 0.28em;
+  padding: 0.18em 0.38em;
+  border-radius: 999px;
+  background: rgba(28, 36, 48, 0.88);
+  color: #fff8ee;
+  letter-spacing: 0.02em;
+  user-select: none;
+  pointer-events: none;
+}
+
+.fx-slow {
+  background: var(--fx-slow);
   border-radius: 4px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-.fx-slow {
-  background: var(--fx-slow);
+.fx-super-slow {
+  background: var(--fx-super-slow);
   border-radius: 4px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -474,6 +495,20 @@ body { min-height: 100vh; }
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   animation: quake 0.28s linear infinite;
+}
+.fx-orphan {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.2em;
+  margin-left: 0.2em;
+  padding: 0.1em 0;
+  border-radius: 4px;
+  background: var(--fx-orphan);
+  box-shadow: inset 0 0 0 1px rgba(160, 40, 40, 0.35);
+}
+.fx-orphan::before {
+  background: #a33 !important;
+  content: "∅ " attr(data-value) !important;
 }
 
 @keyframes wobble {

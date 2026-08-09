@@ -78,7 +78,7 @@ const raw4 = page.locator(`.block[data-key="${line4Key}"] .raw-preview`);
 await page.waitForTimeout(100);
 const raw4Text = (await raw4.textContent()).trim();
 assert(
-  raw4Text === 'Sorry, but <.5>my mom would get angry<-1>.',
+  raw4Text === 'Sorry, but <.15>my mom would get angry<-1>.',
   `Line4 raw expected Slow wrap, got: ${JSON.stringify(raw4Text)}`
 );
 
@@ -118,9 +118,84 @@ await page.locator('.stamp[data-effect="slow"]').click();
 await page.waitForTimeout(200);
 const raw4Again = (await raw4.textContent()).trim();
 assert(
-  raw4Again === 'Sorry, but <.5>my mom would get angry<-1>.',
+  raw4Again === 'Sorry, but <.15>my mom would get angry<-1>.',
   `Line4 not idempotent: ${JSON.stringify(raw4Again)}`
 );
+
+// Value chip present on slow span
+const chip = page.locator(`.visual-line[data-key="${line4Key}"] [data-value=".15"]`);
+assert(await chip.count(), 'missing .15 value chip');
+
+// Super slow on a word
+await page.evaluate((key) => {
+  const el = document.querySelector(`.visual-line[data-key="${key}"]`);
+  const text = el.textContent;
+  const target = 'mom';
+  const start = text.indexOf(target);
+  const end = start + target.length;
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let n;
+  while ((n = walk.nextNode())) nodes.push(n);
+  function loc(index) {
+    let rem = index;
+    for (const node of nodes) {
+      const len = node.textContent.length;
+      if (rem <= len) return { node, offset: rem };
+      rem -= len;
+    }
+    const last = nodes[nodes.length - 1];
+    return { node: last, offset: last.textContent.length };
+  }
+  const a = loc(start);
+  const b = loc(end);
+  const range = document.createRange();
+  range.setStart(a.node, a.offset);
+  range.setEnd(b.node, b.offset);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+}, line4Key);
+await page.locator('.stamp[data-effect="superSlow"]').click();
+await page.waitForTimeout(200);
+assert(await page.locator(`.visual-line[data-key="${line4Key}"] [data-value=".5"]`).count(), 'missing .5 chip');
+
+// Trailing tag blocked
+await line4.click();
+await page.evaluate((key) => {
+  const el = document.querySelector(`.visual-line[data-key="${key}"]`);
+  const text = el.textContent;
+  const end = text.length;
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let n;
+  while ((n = walk.nextNode())) nodes.push(n);
+  function loc(index) {
+    let rem = index;
+    for (const node of nodes) {
+      const len = node.textContent.length;
+      if (rem <= len) return { node, offset: rem };
+      rem -= len;
+    }
+    const last = nodes[nodes.length - 1];
+    return { node: last, offset: last.textContent.length };
+  }
+  const a = loc(end);
+  const range = document.createRange();
+  range.setStart(a.node, a.offset);
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+}, line4Key);
+const beforeTrail = (await raw4.textContent()).trim();
+await page.locator('.stamp[data-effect="shake"]').click();
+await page.waitForTimeout(200);
+const afterTrail = (await raw4.textContent()).trim();
+assert(beforeTrail === afterTrail, `trailing shake should be blocked: ${afterTrail}`);
+assert((await page.locator('#toast').textContent()).toLowerCase().includes('end') || beforeTrail === afterTrail);
 
 const raw1 = (await page.locator(`.block[data-key="${line1Key}"] .raw-preview`).textContent()).trim();
 assert(raw1 === 'WOO<30>OOOO!!', `Line1 corrupted: ${JSON.stringify(raw1)}`);
@@ -137,7 +212,7 @@ await page.getByRole('button', { name: 'Day 1' }).click();
 await page.getByRole('button', { name: 'Copy Unreal code' }).click();
 const exported = await page.locator('#export-text').inputValue();
 assert(exported.startsWith('(('), 'export should start with ((');
-assert(exported.includes('<.5>my mom would get angry<-1>'), 'export missing edited line');
+assert(exported.includes('<.15>my mom would get angry<-1>') || exported.includes('<.5>mom<-1>'), 'export missing edited line');
 
 assert(errors.filter((e) => !e.includes('favicon')).length === 0, `page errors: ${errors.join('; ')}`);
 

@@ -31,18 +31,18 @@
         <h2>Effects</h2>
         <p class="toolbar-hint">Select text in a line, then stamp an effect.</p>
 
-        <button type="button" class="stamp stamp-very-slow" data-effect="verySlow" title="&lt;.1&gt; … &lt;-1&gt;">
-          <span class="stamp-swatch"></span>
-          <span>
-            <strong>Very slow</strong>
-            <small>Stoppage · no skip</small>
-          </span>
-        </button>
-        <button type="button" class="stamp stamp-slow" data-effect="slow" title="&lt;.5&gt; … &lt;-1&gt;">
+        <button type="button" class="stamp stamp-slow" data-effect="slow" title="&lt;.15&gt; … &lt;-1&gt;  (under .2, skippable)">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Slow</strong>
-            <small>Skippable delay</small>
+            <small>&lt;.2 · skippable</small>
+          </span>
+        </button>
+        <button type="button" class="stamp stamp-super-slow" data-effect="superSlow" title="&lt;.5&gt; … &lt;-1&gt;  (.2–.99 delay)">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Super slow</strong>
+            <small>.2–.99 letter delay</small>
           </span>
         </button>
         <button type="button" class="stamp stamp-shake" data-effect="shake" title="&lt;3&gt;">
@@ -59,28 +59,30 @@
             <small>Big impact</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-reset" data-effect="reset" title="&lt;-1&gt;">
+        <button type="button" class="stamp stamp-reset" data-effect="reset" title="&lt;-1&gt; back to default .1">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Reset</strong>
-            <small>Back to default</small>
+            <small>Default speed (.1)</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-clear" data-effect="clear" title="Strip tags in selection">
+        <button type="button" class="stamp stamp-clear" data-effect="clear" title="Strip tags in selection / trailing orphans">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Clear tags</strong>
-            <small>Selection only</small>
+            <small>Selection or trailing</small>
           </span>
         </button>
 
         <div class="legend">
-          <h3>Colors</h3>
+          <h3>Read the chips</h3>
+          <p class="toolbar-hint">Each highlight shows its <code>&lt;value&gt;</code> on a chip so you can see where speed/shake starts and ends.</p>
           <ul>
-            <li><i class="fx-very-slow"></i> Very slow</li>
-            <li><i class="fx-slow"></i> Slow</li>
+            <li><i class="fx-slow"></i> Slow (&lt;.2)</li>
+            <li><i class="fx-super-slow"></i> Super slow</li>
             <li><i class="fx-shake"></i> Shake</li>
             <li><i class="fx-strong"></i> Strong shake</li>
+            <li><i class="fx-orphan"></i> Orphan (end tag)</li>
           </ul>
         </div>
 

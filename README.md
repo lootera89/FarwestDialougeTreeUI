@@ -6,21 +6,24 @@ Interactive Scratch-style editor for Unreal Engine dialogue data assets.
 
 ```bash
 # from repo root — any static server works
-npx --yes serve app -p 5173
+npm start
+# → http://localhost:5173
 ```
 
-Open `http://localhost:5173`, then:
+Open the app, then:
 
 1. **Load sample** or **Import paste** your DA TArray text
 2. Pick a **Day**, click a line, select text
-3. Stamp **Very slow / Slow / Shake / Strong shake** from the left
-4. Effects show as colored highlights (tags stay hidden)
+3. Stamp **Slow / Super slow / Shake / Strong shake** from the left
+4. Effects show as colored highlights with a **value chip** (`.15`, `.5`, `30`…) so you can see where each tag starts/ends
 5. **Copy Unreal code** to paste back into the data asset
+
+Trailing tags with no letters after them are blocked, shown as a red ∅ chip if already present, and stripped on export / Clear tags.
 
 ### Shortcuts
 
-- `Ctrl/Cmd+Shift+1` Very slow
-- `Ctrl/Cmd+Shift+2` Slow
+- `Ctrl/Cmd+Shift+1` Slow (`<.15>`)
+- `Ctrl/Cmd+Shift+2` Super slow (`<.5>`)
 - `Ctrl/Cmd+Shift+3` Shake
 - `Ctrl/Cmd+Shift+4` Strong shake
 
@@ -28,9 +31,11 @@ Open `http://localhost:5173`, then:
 
 | Tag | Meaning |
 |-----|---------|
-| `<0.n>` … `<1>` (decimals) | Text speed (`1` fastest; below `0.2` = no skip) |
+| delay number | Timer between letters — **higher = slower**. Default is `<.1>` |
+| `<.n>` where n **&lt; .2** | Slow — still fast, fast-forwardable |
+| `<.2>` … `<.99>` | Super slow |
 | `<1>` … `<10>` | Regular shake (duration) |
 | `<10>`+ | Strong shake |
-| `<-1>` | Reset to default |
+| `<-1>` | Reset to default (`.1`) |
 
-The editor treats integer `1–10` as shake and decimals / values `< 1` as speed, matching how the sample scripts are written.
+The editor treats integer `1–10` as shake and decimals / values `< 1` as text speed.

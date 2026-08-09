@@ -1,17 +1,20 @@
 /**
  * Quick node smoke test for parser + effects (no browser).
- * Run: node --experimental-vm-modules app/js/smoke-test.mjs
+ * Run: node app/js/smoke-test.mjs
  */
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-import { parseDialogueAsset, serializeDialogueAsset, unescapeUnreal } from './parser.js';
+import { parseDialogueAsset, serializeDialogueAsset } from './parser.js';
 import {
   buildVisualSegments,
   applyEffectToSelection,
   stripTags,
+  stripTrailingTags,
+  hasTrailingTags,
   classifyEffect,
+  insertTagAt,
 } from './effects.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,32 +39,50 @@ console.assert(
 );
 
 console.assert(classifyEffect('30').kind === 'strong');
-console.assert(classifyEffect('.1').kind === 'verySlow');
-console.assert(classifyEffect('.5').kind === 'slow');
+console.assert(classifyEffect('.1').kind === 'slow', 'default .1 is slow/ffwdable');
+console.assert(classifyEffect('.15').kind === 'slow');
+console.assert(classifyEffect('.5').kind === 'superSlow');
+console.assert(classifyEffect('.6').kind === 'superSlow');
 console.assert(classifyEffect('3').kind === 'shake');
 console.assert(classifyEffect('-1').kind === 'reset');
 
 const segs = buildVisualSegments('WOO<30>OOOO!!');
 console.assert(segs[0].text === 'WOO' && segs[0].kind === 'plain', 'seg0');
-console.assert(segs[1].text === 'OOOO!!' && segs[1].kind === 'strong', 'seg1');
+console.assert(segs[1].text === 'OOOO!!' && segs[1].kind === 'strong' && segs[1].raw === '30', 'seg1');
 
 const segs2 = buildVisualSegments('I see...!<1> <.6>W<-1>e');
 console.assert(stripTags('I see...!<1> <.6>W<-1>e') === 'I see...! We');
+console.assert(segs2.some((s) => s.kind === 'superSlow' && s.raw === '.6' && s.text === 'W'));
 
-let t = 'Hello world';
-t = applyEffectToSelection(t, 6, 11, 'slow'); // "world"
-console.assert(t === 'Hello <.5>world<-1>', `slow wrap got: ${t}`);
-t = applyEffectToSelection(t, 6, 11, 'slow');
-console.assert(t === 'Hello <.5>world<-1>', `idempotent slow got: ${t}`);
+const orphanSegs = buildVisualSegments('Hello<.5>');
+console.assert(orphanSegs.some((s) => s.kind === 'orphan'), 'orphan marker');
+console.assert(hasTrailingTags('Hello<.5>'));
+console.assert(stripTrailingTags('Hello<.5><-1>') === 'Hello');
+console.assert(stripTrailingTags('Hello<.5>world') === 'Hello<.5>world');
+
+let t = applyEffectToSelection('Hello world', 6, 11, 'slow'); // "world" at end → no <-1>
+console.assert(t.text === 'Hello <.15>world', `slow wrap got: ${t.text}`);
+t = applyEffectToSelection(t.text, 6, 11, 'slow');
+console.assert(t.text === 'Hello <.15>world', `idempotent slow got: ${t.text}`);
+
+// Mid-string slow keeps <-1> before following letters
+t = applyEffectToSelection('Hello world!', 6, 11, 'slow');
+console.assert(t.text === 'Hello <.15>world<-1>!', `mid slow got: ${t.text}`);
 
 t = applyEffectToSelection('WOOOOO!!', 3, 3, 'strongShake');
-console.assert(t === 'WOO<30>OOO!!', `shake insert got: ${t}`);
+console.assert(t.text === 'WOO<30>OOO!!', `shake insert got: ${t.text}`);
+
+const endBlock = applyEffectToSelection('Hello', 5, 5, 'slow');
+console.assert(endBlock.error, 'should block tag at end');
+
+const endInsert = insertTagAt('Hello', 5, '.5');
+console.assert(endInsert.error, 'custom tag at end blocked');
 
 const mom = 'Sorry, but my mom would get angry.';
-let m = applyEffectToSelection(mom, 11, 33, 'slow');
-console.assert(m === 'Sorry, but <.5>my mom would get angry<-1>.', m);
-m = applyEffectToSelection(m, 11, 33, 'slow');
-console.assert(m === 'Sorry, but <.5>my mom would get angry<-1>.', `mom idempotent: ${m}`);
+let m = applyEffectToSelection(mom, 11, 33, 'superSlow');
+console.assert(m.text === 'Sorry, but <.5>my mom would get angry<-1>.', m.text);
+m = applyEffectToSelection(m.text, 11, 33, 'superSlow');
+console.assert(m.text === 'Sorry, but <.5>my mom would get angry<-1>.', `mom idempotent: ${m.text}`);
 
 console.log('OK — parser + effects smoke tests passed');
 if (warnings.length) console.log('warnings:', warnings);

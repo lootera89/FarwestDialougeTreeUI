@@ -7,6 +7,7 @@ import {
   effectClassName,
   insertTagAt,
   stripTags,
+  stripTrailingTags,
 } from './effects.js';
 
 const SAMPLE_URL = './sample/dialogues.txt';
@@ -105,8 +106,16 @@ function renderVisualHTML(tagged) {
   const segs = buildVisualSegments(tagged);
   return segs
     .map((s) => {
+      if (s.kind === 'orphan') {
+        const label = escapeHtml(s.label || '');
+        return `<span class="fx-orphan" contenteditable="false" data-kind="orphan" data-value="${label}" title="Tag at end of line — nothing after it plays. Clear tags to remove."></span>`;
+      }
       const safe = escapeHtml(s.text);
-      return `<span class="${effectClassName(s.kind)}" data-kind="${s.kind}">${safe || ''}</span>`;
+      const val =
+        s.raw != null && s.kind !== 'plain'
+          ? ` data-value="${escapeHtml(String(s.raw))}"`
+          : '';
+      return `<span class="${effectClassName(s.kind)}" data-kind="${s.kind}"${val}>${safe}</span>`;
     })
     .join('');
 }
@@ -269,7 +278,8 @@ function rebuildTaggedFromPlain(oldTagged, newPlain) {
     cursor = a.plainIndex;
   }
   out += newPlain.slice(cursor);
-  return out;
+  // Drop tags that slipped past the last letter (they never play)
+  return stripTrailingTags(out);
 }
 
 function rememberSelectionFromActive() {
@@ -293,27 +303,31 @@ function applyStamp(effectKey) {
   const { start, end } = state.activePlainRange;
 
   if (effectKey === 'clear' && start === end) {
+    // Allow clear with no selection to strip trailing orphan tags
+    const cleaned = stripTrailingTags(tagged);
+    if (cleaned !== tagged) {
+      setField(key, cleaned);
+      renderTree(true);
+      toast('Removed trailing tag');
+      return;
+    }
     toast('Select text to clear tags from');
     return;
   }
 
-  let next;
-  if (effectKey === 'clear') {
-    next = applyEffectToSelection(tagged, start, end, 'clear');
-  } else {
-    next = applyEffectToSelection(tagged, start, end, effectKey);
+  const result = applyEffectToSelection(tagged, start, end, effectKey);
+  if (result.error) {
+    toast(result.error);
+    return;
   }
-  setField(key, next);
+  setField(key, result.text);
 
-  // Keep selection roughly on same plain span after apply
-  const plainLen = stripTags(next).length;
+  const plainLen = stripTags(result.text).length;
   const selStart = Math.min(start, plainLen);
   const selEnd = Math.min(Math.max(end, start), plainLen);
-  // For speed wrap, selection may grow by 0 plain chars
   state.activePlainRange = { start: selStart, end: selEnd };
 
   renderTree(true);
-  // restore focus/selection
   requestAnimationFrame(() => {
     const visual = document.querySelector(`.visual-line[data-key="${CSS.escape(key)}"]`);
     if (visual) {
@@ -325,7 +339,8 @@ function applyStamp(effectKey) {
       }
     }
   });
-  toast(EFFECT_PRESETS[effectKey]?.label || (effectKey === 'clear' ? 'Cleared' : 'Applied'));
+  const label = EFFECT_PRESETS[effectKey]?.label || (effectKey === 'clear' ? 'Cleared' : 'Applied');
+  toast(result.cleanedTrailing ? `${label} · trimmed trailing tag` : label);
 }
 
 /* ---------- Block rendering ---------- */
@@ -365,7 +380,7 @@ function createLineBlock(fieldDef) {
   visual.dataset.key = fieldDef.key;
   visual.dataset.placeholder = isPlayer ? 'Player reply…' : 'Character line…';
   visual.innerHTML = renderVisualHTML(tagged);
-  if (!stripTags(tagged)) visual.innerHTML = '';
+  // Only blank the editor when there is truly nothing (no text, no orphan markers)
 
   visual.addEventListener('focus', () => {
     state.activeField = fieldDef.key;
@@ -393,7 +408,6 @@ function createLineBlock(fieldDef) {
     inputTimer = setTimeout(() => {
       const off = getPlainSelectionOffsets(visual) || state.activePlainRange;
       visual.innerHTML = renderVisualHTML(getField(fieldDef.key));
-      if (!stripTags(getField(fieldDef.key))) visual.innerHTML = '';
       try {
         if (off) setPlainSelection(visual, off.start, off.end);
       } catch {
@@ -653,7 +667,27 @@ function doImport() {
   if (warnings.length) console.warn(warnings);
 }
 
+function sanitizeTrailingTags() {
+  let cleaned = 0;
+  for (const day of state.days) {
+    for (const key of Object.keys(day.fields)) {
+      const v = day.fields[key] ?? '';
+      const next = stripTrailingTags(v);
+      if (next !== v) {
+        day.fields[key] = next;
+        cleaned += 1;
+      }
+    }
+  }
+  return cleaned;
+}
+
 function openExport() {
+  const cleaned = sanitizeTrailingTags();
+  if (cleaned) {
+    renderTree(true);
+    toast(`Removed ${cleaned} trailing tag(s) before export`);
+  }
   els.exportText.value = serializeDialogueAsset(state.days);
   els.exportDialog.showModal();
 }
@@ -695,7 +729,12 @@ document.getElementById('btn-custom-tag').addEventListener('click', () => {
   const key = state.activeField;
   const tagged = getField(key);
   const idx = state.activePlainRange.start;
-  setField(key, insertTagAt(tagged, idx, raw));
+  const result = insertTagAt(tagged, idx, raw);
+  if (result.error) {
+    toast(result.error);
+    return;
+  }
+  setField(key, result.text);
   renderTree(true);
   toast(`Inserted <${raw}>`);
 });
@@ -712,7 +751,7 @@ document.getElementById('btn-copy-export').addEventListener('click', copyExport)
 // Keyboard: Ctrl/Cmd+Shift+1..4 for effects
 document.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
-  const map = { Digit1: 'verySlow', Digit2: 'slow', Digit3: 'shake', Digit4: 'strongShake' };
+  const map = { Digit1: 'slow', Digit2: 'superSlow', Digit3: 'shake', Digit4: 'strongShake' };
   if (map[e.code]) {
     e.preventDefault();
     applyStamp(map[e.code]);
