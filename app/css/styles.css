@@ -147,6 +147,12 @@ body { min-height: 100vh; }
   gap: 0.55rem;
   position: sticky;
   top: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
+}
+.toolbar > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .toolbar h2 {
@@ -234,6 +240,7 @@ body { min-height: 100vh; }
   margin-top: 0.35rem;
   display: grid;
   gap: 0.35rem;
+  width: 100%;
 }
 .custom-tag label {
   font-size: 0.78rem;
@@ -242,15 +249,26 @@ body { min-height: 100vh; }
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.custom-row { display: flex; gap: 0.35rem; }
+.custom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  width: 100%;
+  align-items: stretch;
+}
 .custom-row input {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   border: 2px solid rgba(28, 36, 48, 0.12);
   border-radius: 10px;
   padding: 0.45rem 0.55rem;
   font: inherit;
   background: #fff;
+}
+.custom-row .btn.compact {
+  flex: none;
+  white-space: nowrap;
+  padding: 0.45rem 0.7rem;
 }
 
 .stage {
