@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Farwest Dialogue Tree</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>Farwest Dialogue Tree</h1>
+          <p class="tagline">Paste Unreal DA text · edit like blocks · copy effects without the brackets</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="btn ghost" id="btn-import">Import paste</button>
+        <button type="button" class="btn ghost" id="btn-load-sample">Load sample</button>
+        <button type="button" class="btn primary" id="btn-export">Copy Unreal code</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="toolbar" aria-label="Effect stamps">
+        <h2>Effects</h2>
+        <p class="toolbar-hint">Select text in a line, then stamp an effect.</p>
+
+        <button type="button" class="stamp stamp-very-slow" data-effect="verySlow" title="&lt;.1&gt; … &lt;-1&gt;">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Very slow</strong>
+            <small>Stoppage · no skip</small>
+          </span>
+        </button>
+        <button type="button" class="stamp stamp-slow" data-effect="slow" title="&lt;.5&gt; … &lt;-1&gt;">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Slow</strong>
+            <small>Skippable delay</small>
+          </span>
+        </button>
+        <button type="button" class="stamp stamp-shake" data-effect="shake" title="&lt;3&gt;">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Shake</strong>
+            <small>Regular rumble</small>
+          </span>
+        </button>
+        <button type="button" class="stamp stamp-strong" data-effect="strongShake" title="&lt;30&gt;">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Strong shake</strong>
+            <small>Big impact</small>
+          </span>
+        </button>
+        <button type="button" class="stamp stamp-reset" data-effect="reset" title="&lt;-1&gt;">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Reset</strong>
+            <small>Back to default</small>
+          </span>
+        </button>
+        <button type="button" class="stamp stamp-clear" data-effect="clear" title="Strip tags in selection">
+          <span class="stamp-swatch"></span>
+          <span>
+            <strong>Clear tags</strong>
+            <small>Selection only</small>
+          </span>
+        </button>
+
+        <div class="legend">
+          <h3>Colors</h3>
+          <ul>
+            <li><i class="fx-very-slow"></i> Very slow</li>
+            <li><i class="fx-slow"></i> Slow</li>
+            <li><i class="fx-shake"></i> Shake</li>
+            <li><i class="fx-strong"></i> Strong shake</li>
+          </ul>
+        </div>
+
+        <div class="custom-tag">
+          <label for="custom-tag-input">Custom tag</label>
+          <div class="custom-row">
+            <input id="custom-tag-input" type="text" placeholder="e.g. 0.13 or 55" />
+            <button type="button" class="btn compact" id="btn-custom-tag">Insert</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="stage">
+        <div class="day-bar" id="day-bar"></div>
+        <div class="tree-scroll" id="tree-root"></div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="import-dialog">
+    <form method="dialog" class="dialog-card">
+      <h2>Import Unreal DA paste</h2>
+      <p>Paste the TArray text from your data asset (the <code>((Line1=…),(Line1=…))</code> blob).</p>
+      <textarea id="import-text" spellcheck="false" placeholder="((Line1_9_…=&quot;Hello&quot;,…),…)"></textarea>
+      <div class="dialog-actions">
+        <button type="submit" class="btn ghost" value="cancel">Cancel</button>
+        <button type="button" class="btn primary" id="btn-import-confirm">Load</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="export-dialog">
+    <form method="dialog" class="dialog-card">
+      <h2>Unreal paste</h2>
+      <p>Copy this back into your data asset / clipboard workflow.</p>
+      <textarea id="export-text" spellcheck="false" readonly></textarea>
+      <div class="dialog-actions">
+        <button type="button" class="btn primary" id="btn-copy-export">Copy to clipboard</button>
+        <button type="submit" class="btn ghost" value="ok">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
