@@ -96,8 +96,8 @@ const endInsert = insertTagAt('Hello', 5, '.5');
 console.assert(endInsert.error, 'custom tag at end blocked');
 
 console.assert(
-  applyEnglishCapitalization("it's duke. i KNOW it's cool") === "It's duke. I know it's cool",
-  'sentence case + pronoun I'
+  applyEnglishCapitalization("it's duke. i KNOW it's cool") === "It's Duke. I know it's cool",
+  'sentence case + pronoun I + name Duke'
 );
 console.assert(
   applyEnglishCapitalization('WOO<30>OOOO!! next LINE') === 'Woo<30>oooo!! Next line',
@@ -126,6 +126,24 @@ console.assert(
 console.assert(
   applyEnglishCapitalization('done. NEXT') === 'Done. Next',
   'single period still ends sentence'
+);
+console.assert(
+  applyEnglishCapitalization('STOP RIGHT NOW please') === 'STOP RIGHT NOW please',
+  'keep stylistic 3+ ALL-CAPS words'
+);
+console.assert(
+  applyEnglishCapitalization('OH NO wait') === 'Oh no wait',
+  'two ALL-CAPS words still sentence-cased'
+);
+console.assert(
+  applyEnglishCapitalization('ask sue and uncle tim about blueland') ===
+    'Ask Sue and Uncle Tim about Blueland',
+  'proper names'
+);
+console.assert(
+  applyEnglishCapitalization('the guard lady and john met jonathan the shepherd') ===
+    'The Guard Lady and John met Jonathan the Shepherd',
+  'multi-word and more names'
 );
 
 console.log('OK — parser + effects smoke tests passed');
