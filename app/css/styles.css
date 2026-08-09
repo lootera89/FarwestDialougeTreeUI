@@ -604,7 +604,7 @@ body { min-height: 100vh; }
   width: 100%;
   min-height: 2.4rem;
   border-radius: 10px;
-  padding: 2rem 0.65rem 0.55rem;
+  padding: var(--balloon-stack-pad, 2rem) 0.65rem 0.55rem;
   font-size: 1.05rem;
   line-height: 2;
   background: var(--line);
@@ -613,6 +613,7 @@ body { min-height: 100vh; }
   cursor: text;
   white-space: pre-wrap;
   word-break: break-word;
+  transition: padding-top 0.12s ease;
 }
 .visual-line:focus {
   outline: 3px solid rgba(28, 36, 48, 0.25);
@@ -633,7 +634,7 @@ body { min-height: 100vh; }
 .fx-balloon {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + 4px + var(--balloon-lift, 0px));
   z-index: 5;
   display: inline-flex;
   align-items: center;
@@ -652,6 +653,7 @@ body { min-height: 100vh; }
   user-select: none;
   background: transparent;
   transform: none;
+  transition: bottom 0.12s ease;
 }
 .fx-balloon::after {
   display: none;

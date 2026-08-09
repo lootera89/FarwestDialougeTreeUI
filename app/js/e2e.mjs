@@ -57,6 +57,49 @@ assert(await page.locator('.fx-balloon[data-balloon="30"]').count(), 'missing ba
 assert(await page.locator('.fx-balloon[data-balloon="1 · .6 · -1"]').count(), 'missing stacked balloon');
 assert(await page.locator('.fx-chip-dot').count(), 'missing chip separator dots');
 
+// Adjacent short runs must stack balloons vertically instead of overlapping
+await page.evaluate((key) => {
+  const raw = localStorage.getItem('farwest-dialogue-characters-v1');
+  if (!raw) throw new Error('no persisted state');
+  const data = JSON.parse(raw);
+  const ch = data.characters?.[data.characterIndex];
+  const day = ch?.days?.[ch.dayIndex ?? 0];
+  if (!day?.fields) throw new Error('no day');
+  day.fields[key] =
+    "It's Duke.<1> <.6>I<-1> <30>kn<.5>o<-1>w it's super cool >:3";
+  localStorage.setItem('farwest-dialogue-characters-v1', JSON.stringify(data));
+}, line1Key);
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(500);
+
+const stackInfo = await page.locator(`.visual-line[data-key="${line1Key}"]`).evaluate((el) => {
+  const balloons = [...el.querySelectorAll('.fx-balloon')].map((b) => {
+    const r = b.getBoundingClientRect();
+    return {
+      label: b.dataset.balloon,
+      tier: Number(b.dataset.tier || 0),
+      y: r.y,
+      h: r.height,
+      x: r.x,
+      w: r.width,
+    };
+  });
+  let verticalClash = false;
+  for (let i = 0; i < balloons.length; i++) {
+    for (let j = i + 1; j < balloons.length; j++) {
+      const a = balloons[i];
+      const b = balloons[j];
+      const hOverlap = a.x < b.x + b.w && a.x + a.w > b.x;
+      const vOverlap = a.y < b.y + b.h && a.y + a.h > b.y;
+      if (hOverlap && vOverlap) verticalClash = true;
+    }
+  }
+  return { count: balloons.length, verticalClash, tiers: balloons.map((b) => b.tier) };
+});
+assert(stackInfo.count >= 3, `expected 3+ balloons, got ${stackInfo.count}`);
+assert(Math.max(...stackInfo.tiers) >= 1, `expected vertical stacking tiers, got ${stackInfo.tiers}`);
+assert(!stackInfo.verticalClash, 'stacked balloons still overlap vertically');
+
 await page.locator('.char-tab', { hasText: 'Girl' }).click();
 await page.waitForTimeout(150);
 const girlText = await page.locator(`.visual-line[data-key="${line1Key}"]`).evaluate((el) => {

@@ -389,6 +389,72 @@ function renderVisualHTML(tagged) {
     .join('');
 }
 
+/**
+ * Nearby short runs (I / kn / o) place wide chip rows on top of each other.
+ * Measure balloons and lift colliding ones into vertical tiers so nothing overlaps.
+ */
+function layoutBalloons(visualEl) {
+  if (!visualEl) return;
+  const balloons = [...visualEl.querySelectorAll('.fx-balloon')];
+  for (const b of balloons) {
+    b.style.removeProperty('--balloon-lift');
+    delete b.dataset.tier;
+  }
+  visualEl.style.removeProperty('--balloon-stack-pad');
+  if (!balloons.length) return;
+
+  const padX = 8;
+  const tierGap = 5;
+  const heights = balloons.map((b) => b.getBoundingClientRect().height);
+  const rowH = Math.max(18, ...heights) + tierGap;
+
+  const items = balloons.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { el, left: r.left, right: r.right, width: r.width };
+  });
+
+  // Skip if layout isn't ready (detached / hidden)
+  if (items.every((it) => it.width === 0)) return;
+
+  const placed = [];
+  let maxTier = 0;
+  for (const item of items) {
+    let tier = 0;
+    for (;;) {
+      const hit = placed.some(
+        (p) =>
+          p.tier === tier &&
+          item.left < p.right + padX &&
+          item.right > p.left - padX
+      );
+      if (!hit) break;
+      tier += 1;
+    }
+    item.tier = tier;
+    maxTier = Math.max(maxTier, tier);
+    placed.push({ left: item.left, right: item.right, tier });
+    item.el.dataset.tier = String(tier);
+    item.el.style.setProperty('--balloon-lift', `${tier * rowH}px`);
+    item.el.style.zIndex = String(10 - tier);
+  }
+
+  const basePad = 30;
+  visualEl.style.setProperty('--balloon-stack-pad', `${basePad + maxTier * rowH}px`);
+}
+
+function layoutAllBalloons() {
+  document.querySelectorAll('.visual-line').forEach((el) => layoutBalloons(el));
+}
+
+function scheduleBalloonLayout(visualEl) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (visualEl) layoutBalloons(visualEl);
+      else layoutAllBalloons();
+    });
+  });
+}
+
 function escapeHtml(str) {
   return str
     .replace(/&/g, '&amp;')
@@ -701,6 +767,7 @@ function createLineBlock(fieldDef) {
     inputTimer = setTimeout(() => {
       const off = getPlainSelectionOffsets(visual) || state.activePlainRange;
       visual.innerHTML = renderVisualHTML(getField(fieldDef.key));
+      scheduleBalloonLayout(visual);
       try {
         if (off) setPlainSelection(visual, off.start, off.end);
       } catch {
@@ -935,6 +1002,7 @@ function renderTree(keepScroll = false) {
   els.treeRoot.appendChild(tree);
 
   if (keepScroll) scrollParent.scrollTop = scrollTop;
+  scheduleBalloonLayout();
 }
 
 function render() {
@@ -1269,3 +1337,9 @@ updateHistoryButtons();
 state.history = [];
 state.future = [];
 updateHistoryButtons();
+
+let balloonResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(balloonResizeTimer);
+  balloonResizeTimer = setTimeout(() => layoutAllBalloons(), 80);
+});
