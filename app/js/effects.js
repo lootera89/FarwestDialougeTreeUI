@@ -457,6 +457,7 @@ const PRONOUN_I_RE = /^(i|i'm|i'd|i've|i'll)$/i;
  * Preserves <> effect tags. Lowercases letters, then capitalizes:
  * - the first letter of the line / each sentence (after . ? !)
  * - the pronoun I and common contractions (I'm, I've, …)
+ * Ellipsis (... or …) does not start a new sentence — the following word stays lowercase.
  */
 export function applyEnglishCapitalization(tagged) {
   const src = String(tagged ?? '');
@@ -504,12 +505,19 @@ export function applyEnglishCapitalization(tagged) {
     return word;
   }
 
+  function copyTagAt(from) {
+    if (src[from] !== '<') return from;
+    const close = src.indexOf('>', from);
+    if (close === -1) return from;
+    out += src.slice(from, close + 1);
+    return close + 1;
+  }
+
   while (i < src.length) {
     if (src[i] === '<') {
-      const close = src.indexOf('>', i);
-      if (close !== -1) {
-        out += src.slice(i, close + 1);
-        i = close + 1;
+      const next = copyTagAt(i);
+      if (next !== i) {
+        i = next;
         continue;
       }
     }
@@ -528,8 +536,42 @@ export function applyEnglishCapitalization(tagged) {
       continue;
     }
 
+    // Unicode ellipsis — not a sentence boundary
+    if (ch === '…') {
+      out += ch;
+      capitalizeNext = false;
+      i += 1;
+      continue;
+    }
+
+    // Period run: single "." ends a sentence; "..." ellipsis does not
+    if (ch === '.') {
+      let dots = 0;
+      while (i < src.length) {
+        if (src[i] === '<') {
+          const next = copyTagAt(i);
+          if (next === i) {
+            out += src[i];
+            i += 1;
+          } else {
+            i = next;
+          }
+          continue;
+        }
+        if (src[i] === '.') {
+          out += '.';
+          dots += 1;
+          i += 1;
+          continue;
+        }
+        break;
+      }
+      capitalizeNext = dots < 3;
+      continue;
+    }
+
     out += ch;
-    if (/[.!?]/.test(ch)) capitalizeNext = true;
+    if (/[!?]/.test(ch)) capitalizeNext = true;
     i += 1;
   }
 
