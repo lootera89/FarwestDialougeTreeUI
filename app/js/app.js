@@ -17,10 +17,63 @@ const state = {
   dayIndex: 0,
   activeField: null,
   activePlainRange: { start: 0, end: 0 },
-  stamp: null, // pending effect when using stamp-then-select? we'll apply on click with current selection
+  stamp: null,
   showRaw: false,
-  editMode: 'visual', // visual | raw for focused line - actually per-field visual contenteditable
+  editMode: 'visual',
+  history: [],
+  future: [],
+  historyReady: false,
 };
+
+const HISTORY_LIMIT = 80;
+
+function cloneDays(days) {
+  return days.map((d) => ({ fields: { ...d.fields } }));
+}
+
+function snapshotNow() {
+  return {
+    days: cloneDays(state.days),
+    dayIndex: state.dayIndex,
+  };
+}
+
+function pushHistory() {
+  if (!state.historyReady) return;
+  state.history.push(snapshotNow());
+  if (state.history.length > HISTORY_LIMIT) state.history.shift();
+  state.future = [];
+  updateHistoryButtons();
+}
+
+function restoreSnapshot(snap) {
+  state.days = cloneDays(snap.days);
+  state.dayIndex = Math.min(snap.dayIndex, state.days.length - 1);
+  state.activeField = null;
+  render();
+  updateHistoryButtons();
+}
+
+function undo() {
+  if (!state.history.length) return;
+  state.future.push(snapshotNow());
+  restoreSnapshot(state.history.pop());
+  toast('Undo');
+}
+
+function redo() {
+  if (!state.future.length) return;
+  state.history.push(snapshotNow());
+  restoreSnapshot(state.future.pop());
+  toast('Redo');
+}
+
+function updateHistoryButtons() {
+  const u = document.getElementById('btn-undo');
+  const r = document.getElementById('btn-redo');
+  if (u) u.disabled = state.history.length === 0;
+  if (r) r.disabled = state.future.length === 0;
+}
 
 const els = {
   dayBar: document.getElementById('day-bar'),
@@ -51,6 +104,11 @@ function setField(key, value) {
   currentDay().fields[key] = value;
 }
 
+function mutate(fn) {
+  pushHistory();
+  fn();
+}
+
 function getField(key) {
   return currentDay().fields[key] ?? '';
 }
@@ -76,8 +134,10 @@ function renderDayBar() {
   add.className = 'day-add';
   add.textContent = '+ Day';
   add.addEventListener('click', () => {
-    state.days.push(emptyDay());
-    state.dayIndex = state.days.length - 1;
+    mutate(() => {
+      state.days.push(emptyDay());
+      state.dayIndex = state.days.length - 1;
+    });
     render();
   });
   els.dayBar.appendChild(add);
@@ -88,8 +148,10 @@ function renderDayBar() {
     rm.className = 'day-remove';
     rm.textContent = 'Remove day';
     rm.addEventListener('click', () => {
-      state.days.splice(state.dayIndex, 1);
-      state.dayIndex = Math.max(0, state.dayIndex - 1);
+      mutate(() => {
+        state.days.splice(state.dayIndex, 1);
+        state.dayIndex = Math.max(0, state.dayIndex - 1);
+      });
       render();
     });
     els.dayBar.appendChild(rm);
@@ -106,16 +168,16 @@ function renderVisualHTML(tagged) {
   const segs = buildVisualSegments(tagged);
   return segs
     .map((s) => {
+      const tags = s.tags || [];
+      const comment = tags.length ? escapeHtml(tags.join(' · ')) : '';
       if (s.kind === 'orphan') {
-        const label = escapeHtml(s.label || '');
-        return `<span class="fx-orphan" contenteditable="false" data-kind="orphan" data-value="${label}" title="Tag at end of line — nothing after it plays. Clear tags to remove."></span>`;
+        return `<span class="fx-orphan" contenteditable="false" data-kind="orphan"${
+          comment ? ` data-comment="${comment}"` : ''
+        } title="Tag at end of line — nothing after it plays"></span>`;
       }
       const safe = escapeHtml(s.text);
-      const val =
-        s.raw != null && s.kind !== 'plain'
-          ? ` data-value="${escapeHtml(String(s.raw))}"`
-          : '';
-      return `<span class="${effectClassName(s.kind)}" data-kind="${s.kind}"${val}>${safe}</span>`;
+      const cattr = comment ? ` data-comment="${comment}"` : '';
+      return `<span class="fx-run ${effectClassName(s.kind)}" data-kind="${s.kind}"${cattr}>${safe}</span>`;
     })
     .join('');
 }
@@ -303,10 +365,9 @@ function applyStamp(effectKey) {
   const { start, end } = state.activePlainRange;
 
   if (effectKey === 'clear' && start === end) {
-    // Allow clear with no selection to strip trailing orphan tags
     const cleaned = stripTrailingTags(tagged);
     if (cleaned !== tagged) {
-      setField(key, cleaned);
+      mutate(() => setField(key, cleaned));
       renderTree(true);
       toast('Removed trailing tag');
       return;
@@ -320,7 +381,7 @@ function applyStamp(effectKey) {
     toast(result.error);
     return;
   }
-  setField(key, result.text);
+  mutate(() => setField(key, result.text));
 
   const plainLen = stripTags(result.text).length;
   const selStart = Math.min(start, plainLen);
@@ -366,7 +427,7 @@ function createLineBlock(fieldDef) {
   clearBtn.textContent = '×';
   clearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    setField(fieldDef.key, '');
+    mutate(() => setField(fieldDef.key, ''));
     renderTree(true);
   });
   tools.appendChild(clearBtn);
@@ -399,6 +460,16 @@ function createLineBlock(fieldDef) {
   });
 
   let inputTimer = null;
+  let typingHistoryArmed = true;
+  visual.addEventListener('focus', () => {
+    typingHistoryArmed = true;
+  });
+  visual.addEventListener('beforeinput', () => {
+    if (typingHistoryArmed) {
+      pushHistory();
+      typingHistoryArmed = false;
+    }
+  });
   visual.addEventListener('input', () => {
     const prev = getField(fieldDef.key);
     const next = visualDomToTagged(visual, prev);
@@ -638,17 +709,24 @@ function render() {
 }
 
 /* ---------- Import / Export ---------- */
+function replaceDocument(days, message) {
+  if (state.historyReady) pushHistory();
+  state.days = days.length ? days : [emptyDay()];
+  state.dayIndex = 0;
+  state.forceShow = {};
+  state.future = [];
+  render();
+  updateHistoryButtons();
+  toast(message);
+}
+
 async function loadSample() {
   try {
     const res = await fetch(SAMPLE_URL);
     const text = await res.text();
     const { days, warnings } = parseDialogueAsset(text);
-    state.days = days.length ? days : [emptyDay()];
-    state.dayIndex = 0;
-    state.forceShow = {};
-    render();
+    replaceDocument(days, `Loaded ${days.length} day(s)`);
     if (warnings.length) console.warn(warnings);
-    toast(`Loaded ${state.days.length} day(s)`);
   } catch (err) {
     console.error(err);
     toast('Could not load sample — use Import paste');
@@ -658,12 +736,8 @@ async function loadSample() {
 function doImport() {
   const text = els.importText.value;
   const { days, warnings } = parseDialogueAsset(text);
-  state.days = days.length ? days : [emptyDay()];
-  state.dayIndex = 0;
-  state.forceShow = {};
-  render();
+  replaceDocument(days, `Imported ${days.length} day(s)`);
   els.importDialog.close();
-  toast(`Imported ${state.days.length} day(s)`);
   if (warnings.length) console.warn(warnings);
 }
 
@@ -685,6 +759,8 @@ function sanitizeTrailingTags() {
 function openExport() {
   const cleaned = sanitizeTrailingTags();
   if (cleaned) {
+    // already mutated in place — record once
+    // (history was not pushed; optional — skip to avoid noise)
     renderTree(true);
     toast(`Removed ${cleaned} trailing tag(s) before export`);
   }
@@ -734,7 +810,7 @@ document.getElementById('btn-custom-tag').addEventListener('click', () => {
     toast(result.error);
     return;
   }
-  setField(key, result.text);
+  mutate(() => setField(key, result.text));
   renderTree(true);
   toast(`Inserted <${raw}>`);
 });
@@ -747,10 +823,22 @@ document.getElementById('btn-import-confirm').addEventListener('click', doImport
 document.getElementById('btn-load-sample').addEventListener('click', loadSample);
 document.getElementById('btn-export').addEventListener('click', openExport);
 document.getElementById('btn-copy-export').addEventListener('click', copyExport);
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
 
-// Keyboard: Ctrl/Cmd+Shift+1..4 for effects
 document.addEventListener('keydown', (e) => {
-  if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+    return;
+  }
+  if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+    return;
+  }
+  if (!mod || !e.shiftKey) return;
   const map = { Digit1: 'slow', Digit2: 'superSlow', Digit3: 'shake', Digit4: 'strongShake' };
   if (map[e.code]) {
     e.preventDefault();
@@ -760,4 +848,10 @@ document.addEventListener('keydown', (e) => {
 
 // Boot
 render();
-loadSample();
+updateHistoryButtons();
+loadSample().finally(() => {
+  state.history = [];
+  state.future = [];
+  state.historyReady = true;
+  updateHistoryButtons();
+});

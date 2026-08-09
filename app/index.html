@@ -20,6 +20,8 @@
         </div>
       </div>
       <div class="top-actions">
+        <button type="button" class="btn ghost" id="btn-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
+        <button type="button" class="btn ghost" id="btn-redo" title="Redo (Ctrl+Y)" disabled>Redo</button>
         <button type="button" class="btn ghost" id="btn-import">Import paste</button>
         <button type="button" class="btn ghost" id="btn-load-sample">Load sample</button>
         <button type="button" class="btn primary" id="btn-export">Copy Unreal code</button>
@@ -31,42 +33,42 @@
         <h2>Effects</h2>
         <p class="toolbar-hint">Select text in a line, then stamp an effect.</p>
 
-        <button type="button" class="stamp stamp-slow" data-effect="slow" title="&lt;.15&gt; … &lt;-1&gt;  (under .2, skippable)">
+        <button type="button" class="stamp stamp-slow" data-effect="slow" title="Slow (skippable)">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Slow</strong>
-            <small>&lt;.2 · skippable</small>
+            <small>Skippable delay</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-super-slow" data-effect="superSlow" title="&lt;.5&gt; … &lt;-1&gt;  (.2–.99 delay)">
+        <button type="button" class="stamp stamp-super-slow" data-effect="superSlow" title="Super slow">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Super slow</strong>
-            <small>.2–.99 letter delay</small>
+            <small>Heavy delay</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-shake" data-effect="shake" title="&lt;3&gt;">
+        <button type="button" class="stamp stamp-shake" data-effect="shake" title="Shake">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Shake</strong>
             <small>Regular rumble</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-strong" data-effect="strongShake" title="&lt;30&gt;">
+        <button type="button" class="stamp stamp-strong" data-effect="strongShake" title="Strong shake">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Strong shake</strong>
             <small>Big impact</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-reset" data-effect="reset" title="&lt;-1&gt; back to default .1">
+        <button type="button" class="stamp stamp-reset" data-effect="reset" title="Reset to default speed">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Reset</strong>
-            <small>Default speed (.1)</small>
+            <small>Back to default</small>
           </span>
         </button>
-        <button type="button" class="stamp stamp-clear" data-effect="clear" title="Strip tags in selection / trailing orphans">
+        <button type="button" class="stamp stamp-clear" data-effect="clear" title="Clear tags">
           <span class="stamp-swatch"></span>
           <span>
             <strong>Clear tags</strong>
@@ -74,22 +76,10 @@
           </span>
         </button>
 
-        <div class="legend">
-          <h3>Read the chips</h3>
-          <p class="toolbar-hint">Each highlight shows its <code>&lt;value&gt;</code> on a chip so you can see where speed/shake starts and ends.</p>
-          <ul>
-            <li><i class="fx-slow"></i> Slow (&lt;.2)</li>
-            <li><i class="fx-super-slow"></i> Super slow</li>
-            <li><i class="fx-shake"></i> Shake</li>
-            <li><i class="fx-strong"></i> Strong shake</li>
-            <li><i class="fx-orphan"></i> Orphan (end tag)</li>
-          </ul>
-        </div>
-
         <div class="custom-tag">
           <label for="custom-tag-input">Custom tag</label>
           <div class="custom-row">
-            <input id="custom-tag-input" type="text" placeholder="e.g. 0.13 or 55" />
+            <input id="custom-tag-input" type="text" placeholder="value" />
             <button type="button" class="btn compact" id="btn-custom-tag">Insert</button>
           </div>
         </div>
