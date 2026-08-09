@@ -629,6 +629,11 @@ body { min-height: 100vh; }
   position: relative;
   display: inline;
 }
+.fx-chunk-tagged {
+  display: inline-block;
+  vertical-align: baseline;
+  position: relative;
+}
 
 /* Real balloon above letters — never participates in text layout */
 .fx-balloon {
@@ -653,7 +658,7 @@ body { min-height: 100vh; }
   user-select: none;
   background: transparent;
   transform: none;
-  transition: bottom 0.12s ease;
+  transition: bottom 0.1s ease;
 }
 .fx-balloon::after {
   display: none;
