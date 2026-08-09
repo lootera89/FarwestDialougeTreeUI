@@ -4,6 +4,7 @@ import {
   EFFECT_PRESETS,
   applyEffectToSelection,
   buildVisualSegments,
+  classifyEffect,
   effectClassName,
   insertTagAt,
   stripTags,
@@ -328,6 +329,37 @@ function renderDayBar() {
 }
 
 /* ---------- Visual editor helpers ---------- */
+function balloonChipClass(raw) {
+  const kind = classifyEffect(raw).kind;
+  switch (kind) {
+    case 'slow':
+      return 'fx-chip fx-chip-slow';
+    case 'superSlow':
+      return 'fx-chip fx-chip-super-slow';
+    case 'shake':
+      return 'fx-chip fx-chip-shake';
+    case 'strong':
+      return 'fx-chip fx-chip-strong';
+    case 'reset':
+      return 'fx-chip fx-chip-reset';
+    default:
+      return 'fx-chip fx-chip-unknown';
+  }
+}
+
+function renderBalloon(commentTags) {
+  if (!commentTags.length) return '';
+  const label = escapeHtml(commentTags.join(' · '));
+  const parts = commentTags
+    .map((raw, i) => {
+      const chip = `<span class="${balloonChipClass(raw)}">${escapeHtml(raw)}</span>`;
+      if (i === 0) return chip;
+      return `<span class="fx-chip-dot">·</span>${chip}`;
+    })
+    .join('');
+  return `<span class="fx-balloon" contenteditable="false" data-balloon="${label}">${parts}</span>`;
+}
+
 function renderVisualHTML(tagged) {
   const segs = buildVisualSegments(tagged);
   return segs
@@ -336,10 +368,7 @@ function renderVisualHTML(tagged) {
       // Don't litter balloons with lone resets; still show them if stacked with others
       const commentTags =
         tags.length === 1 && tags[0] === '-1' ? [] : tags;
-      const comment = commentTags.length ? escapeHtml(commentTags.join(' · ')) : '';
-      const balloon = comment
-        ? `<span class="fx-balloon" contenteditable="false" data-balloon="${comment}">${comment}</span>`
-        : '';
+      const balloon = renderBalloon(commentTags);
 
       if (s.kind === 'orphan') {
         return `<span class="fx-chunk fx-chunk-orphan" contenteditable="false">${balloon}<span class="fx-orphan" data-kind="orphan"></span></span>`;
