@@ -151,65 +151,102 @@ export function buildVisualSegments(tagged) {
     });
   }
 
-  function flushCluster(followingText) {
-    const comments = tagCluster.slice();
-    tagCluster = [];
-    const peak = peakVisualKind(comments);
-    const endsReset =
-      comments.length > 0 &&
-      classifyEffect(comments[comments.length - 1]).kind === 'reset';
-
-    applyTagEffects(comments);
-
-    const text = heldWs + followingText;
-    heldWs = '';
-
-    // Cluster ends with reset → engine state is plain, but still mark the
-    // first visible character with the last effect so the spot is never blank.
-    if (endsReset && peak && text.length) {
-      const first = text.search(/\S/);
-      const markAt = first === -1 ? 0 : first;
-      if (markAt > 0) pushText(text.slice(0, markAt), []);
-      segments.push({
-        text: text[markAt],
-        kind: peak,
-        tags: comments,
-        raw: comments.join(' '),
-        value: Number(comments[comments.length - 1]),
-      });
-      if (markAt + 1 < text.length) pushText(text.slice(markAt + 1), []);
-      return;
+  /** Append immediate trailing <-1> tags onto the last tagged segment (right side). */
+  function absorbTrailingResets(fromIndex) {
+    let i = fromIndex;
+    while (i < tokens.length && tokens[i].type === 'tag') {
+      const raw = tokens[i].raw;
+      if (classifyEffect(raw).kind !== 'reset') break;
+      const host = [...segments].reverse().find((s) => s.tags && s.tags.length);
+      if (host) {
+        host.tags.push(raw);
+        host.raw = host.tags.join(' ');
+        host.value = Number(raw);
+      } else {
+        tagCluster.push(raw);
+        break;
+      }
+      applyTagEffects([raw]);
+      i += 1;
     }
-
-    pushText(text, comments);
+    return i;
   }
 
-  for (const tok of tokens) {
+  let i = 0;
+  while (i < tokens.length) {
+    const tok = tokens[i];
     if (tok.type === 'tag') {
       tagCluster.push(tok.raw);
+      i += 1;
       continue;
     }
-    if (!tok.value) continue;
+    if (!tok.value) {
+      i += 1;
+      continue;
+    }
 
     const onlyWs = /^\s*$/.test(tok.value);
     if (onlyWs && tagCluster.length) {
       heldWs += tok.value;
+      i += 1;
       continue;
     }
 
     if (tagCluster.length) {
-      flushCluster(tok.value);
-    } else {
-      if (heldWs) {
-        pushText(heldWs, []);
-        heldWs = '';
+      const comments = tagCluster.slice();
+      const peak = peakVisualKind(comments);
+      const endsReset =
+        comments.length > 0 &&
+        classifyEffect(comments[comments.length - 1]).kind === 'reset';
+
+      applyTagEffects(comments);
+      tagCluster = [];
+      const text = heldWs + tok.value;
+      heldWs = '';
+      i += 1;
+
+      if (endsReset && peak && text.length) {
+        const first = text.search(/\S/);
+        const markAt = first === -1 ? 0 : first;
+        if (markAt > 0) pushText(text.slice(0, markAt), []);
+        segments.push({
+          text: text[markAt],
+          kind: peak,
+          tags: comments.slice(),
+          raw: comments.join(' '),
+          value: Number(comments[comments.length - 1]),
+        });
+        if (markAt + 1 < text.length) pushText(text.slice(markAt + 1), []);
+      } else {
+        // Keep inter-tag whitespace outside the balloon host so chips sit on the letter
+        const first = text.search(/\S/);
+        if (first > 0) {
+          pushText(text.slice(0, first), []);
+          pushText(text.slice(first), comments);
+        } else {
+          pushText(text, comments);
+        }
       }
-      pushText(tok.value, []);
+
+      // Pull following <-1> onto this balloon's right side (avoid overlapping balloons)
+      i = absorbTrailingResets(i);
+      continue;
     }
+
+    if (heldWs) {
+      pushText(heldWs, []);
+      heldWs = '';
+    }
+    pushText(tok.value, []);
+    i += 1;
   }
 
   if (tagCluster.length && heldWs) {
-    flushCluster('');
+    const comments = tagCluster.slice();
+    tagCluster = [];
+    applyTagEffects(comments);
+    pushText(heldWs, comments);
+    heldWs = '';
   } else if (heldWs) {
     pushText(heldWs, []);
   }

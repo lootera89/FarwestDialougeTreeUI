@@ -604,9 +604,9 @@ body { min-height: 100vh; }
   width: 100%;
   min-height: 2.4rem;
   border-radius: 10px;
-  padding: 1.15rem 0.65rem 0.55rem;
+  padding: 1.7rem 0.65rem 0.55rem;
   font-size: 1.05rem;
-  line-height: 1.7;
+  line-height: 1.9;
   background: var(--line);
   color: var(--ink);
   box-shadow: inset 0 0 0 2px rgba(0,0,0,0.04);
@@ -632,13 +632,13 @@ body { min-height: 100vh; }
 /* Real balloon above letters — never participates in text layout */
 .fx-balloon {
   position: absolute;
-  left: 0;
-  bottom: calc(100% + 1px);
+  left: 50%;
+  bottom: calc(100% + 3px);
   z-index: 5;
   display: inline-flex;
   align-items: center;
-  gap: 0.12em;
-  padding: 0.1em;
+  gap: 0.22em;
+  padding: 0;
   border-radius: 7px;
   font-size: 0.58rem;
   font-weight: 800;
@@ -646,32 +646,37 @@ body { min-height: 100vh; }
   line-height: 1.15;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  max-width: 14rem;
-  overflow: hidden;
+  max-width: none;
+  overflow: visible;
   pointer-events: none;
   user-select: none;
   background: transparent;
+  transform: translateX(-50%);
 }
 .fx-balloon::after {
   display: none;
 }
 .fx-chip {
   display: inline-block;
-  padding: 0.12em 0.38em;
+  flex: 0 0 auto;
+  padding: 0.16em 0.45em;
   border-radius: 5px;
   color: #1c2430;
   box-shadow: 0 1px 3px rgba(20, 28, 36, 0.16);
 }
 .fx-chip-dot {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   min-width: 0.9em;
-  padding: 0.12em 0.2em;
-  border-radius: 5px;
-  background: #9aa3b0;
-  color: #fff8ee;
+  height: 1.2em;
+  padding: 0 0.28em;
+  border-radius: 999px;
+  background: #e4e7ec;
+  color: #6b7582;
   font-weight: 800;
+  font-size: 0.95em;
 }
 .fx-chip-slow { background: var(--fx-slow); }
 .fx-chip-super-slow { background: var(--fx-super-slow); }
