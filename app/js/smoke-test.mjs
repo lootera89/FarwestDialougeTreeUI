@@ -111,6 +111,22 @@ console.assert(
   applyEnglishCapitalization('I see...!<1> <.6>w<-1>e') === 'I see...!<1> <.6>W<-1>e',
   'capitalize after bang with tags'
 );
+console.assert(
+  applyEnglishCapitalization('wait... THEN what') === 'Wait... then what',
+  'no sentence cap after ellipsis'
+);
+console.assert(
+  applyEnglishCapitalization('okay… WORLD') === 'Okay… world',
+  'no sentence cap after unicode ellipsis'
+);
+console.assert(
+  applyEnglishCapitalization('hmm... i KNOW') === "Hmm... I know",
+  'pronoun I still capitalizes after ellipsis'
+);
+console.assert(
+  applyEnglishCapitalization('done. NEXT') === 'Done. Next',
+  'single period still ends sentence'
+);
 
 console.log('OK — parser + effects smoke tests passed');
 if (warnings.length) console.log('warnings:', warnings);
