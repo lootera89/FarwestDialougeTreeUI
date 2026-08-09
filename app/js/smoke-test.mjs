@@ -6,6 +6,7 @@ import { parseDialogueAsset, serializeDialogueAsset } from './parser.js';
 import {
   buildVisualSegments,
   applyEffectToSelection,
+  applyEnglishCapitalization,
   stripTags,
   stripTrailingTags,
   hasTrailingTags,
@@ -93,6 +94,23 @@ const endBlock = applyEffectToSelection('Hello', 5, 5, 'slow');
 console.assert(endBlock.error, 'should block tag at end');
 const endInsert = insertTagAt('Hello', 5, '.5');
 console.assert(endInsert.error, 'custom tag at end blocked');
+
+console.assert(
+  applyEnglishCapitalization("it's duke. i KNOW it's cool") === "It's duke. I know it's cool",
+  'sentence case + pronoun I'
+);
+console.assert(
+  applyEnglishCapitalization('WOO<30>OOOO!! next LINE') === 'Woo<30>oooo!! Next line',
+  'preserve tags while sentence-casing'
+);
+console.assert(
+  applyEnglishCapitalization("i'm fine. i've GOT this.") === "I'm fine. I've got this.",
+  'I contractions'
+);
+console.assert(
+  applyEnglishCapitalization('I see...!<1> <.6>w<-1>e') === 'I see...!<1> <.6>W<-1>e',
+  'capitalize after bang with tags'
+);
 
 console.log('OK — parser + effects smoke tests passed');
 if (warnings.length) console.log('warnings:', warnings);

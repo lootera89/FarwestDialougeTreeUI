@@ -3,6 +3,7 @@ import { parseDialogueAsset, serializeDialogueAsset } from './parser.js';
 import {
   EFFECT_PRESETS,
   applyEffectToSelection,
+  applyEnglishCapitalization,
   buildVisualSegments,
   classifyEffect,
   effectClassName,
@@ -1224,6 +1225,31 @@ function sanitizeTrailingTags() {
   return cleaned;
 }
 
+/** Sentence-case every dialogue line on the current character (all days). */
+function capitalizeCurrentCharacter() {
+  const ch = currentCharacter();
+  if (!ch) {
+    toast('Import a character first');
+    return;
+  }
+  let changed = 0;
+  mutate(() => {
+    for (const day of ch.days) {
+      for (const key of Object.keys(day.fields)) {
+        const prev = day.fields[key] ?? '';
+        if (!String(prev).trim()) continue;
+        const next = applyEnglishCapitalization(prev);
+        if (next !== prev) {
+          day.fields[key] = next;
+          changed += 1;
+        }
+      }
+    }
+  });
+  render();
+  toast(changed ? `Capitalized ${changed} line(s)` : 'No capitalization changes');
+}
+
 function openExport() {
   if (!currentCharacter()) {
     toast('Import a character first');
@@ -1309,6 +1335,7 @@ document.getElementById('btn-copy-export').addEventListener('click', copyExport)
 document.getElementById('btn-download-export')?.addEventListener('click', downloadExport);
 document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-redo').addEventListener('click', redo);
+document.getElementById('btn-capitalize').addEventListener('click', capitalizeCurrentCharacter);
 
 els.dropZone?.addEventListener('click', () => els.importFiles?.click());
 els.importFiles?.addEventListener('change', async (e) => {

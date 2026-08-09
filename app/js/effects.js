@@ -449,3 +449,89 @@ export function formatBadge(raw) {
   if (raw == null || raw === '') return '';
   return String(raw);
 }
+
+const PRONOUN_I_RE = /^(i|i'm|i'd|i've|i'll)$/i;
+
+/**
+ * Apply standard English sentence capitalization to a tagged dialogue string.
+ * Preserves <> effect tags. Lowercases letters, then capitalizes:
+ * - the first letter of the line / each sentence (after . ? !)
+ * - the pronoun I and common contractions (I'm, I've, …)
+ */
+export function applyEnglishCapitalization(tagged) {
+  const src = String(tagged ?? '');
+  if (!src) return src;
+
+  let out = '';
+  let capitalizeNext = true;
+  let i = 0;
+
+  function isWordChar(ch) {
+    return /[A-Za-z']/.test(ch);
+  }
+
+  function lastPlainIsWordChar() {
+    for (let j = out.length - 1; j >= 0; j--) {
+      if (out[j] === '>') {
+        const open = out.lastIndexOf('<', j);
+        if (open !== -1) {
+          j = open;
+          continue;
+        }
+      }
+      return isWordChar(out[j]);
+    }
+    return false;
+  }
+
+  function peekPlainWord(from) {
+    let word = '';
+    let j = from;
+    while (j < src.length) {
+      if (src[j] === '<') {
+        const close = src.indexOf('>', j);
+        if (close === -1) break;
+        j = close + 1;
+        continue;
+      }
+      if (isWordChar(src[j])) {
+        word += src[j];
+        j += 1;
+        continue;
+      }
+      break;
+    }
+    return word;
+  }
+
+  while (i < src.length) {
+    if (src[i] === '<') {
+      const close = src.indexOf('>', i);
+      if (close !== -1) {
+        out += src.slice(i, close + 1);
+        i = close + 1;
+        continue;
+      }
+    }
+
+    const ch = src[i];
+    if (/[A-Za-z]/.test(ch)) {
+      const atWordStart = !lastPlainIsWordChar();
+      let upper = false;
+      if (atWordStart) {
+        const word = peekPlainWord(i);
+        if (capitalizeNext || PRONOUN_I_RE.test(word)) upper = true;
+      }
+      out += upper ? ch.toUpperCase() : ch.toLowerCase();
+      capitalizeNext = false;
+      i += 1;
+      continue;
+    }
+
+    out += ch;
+    if (/[.!?]/.test(ch)) capitalizeNext = true;
+    i += 1;
+  }
+
+  return out;
+}
