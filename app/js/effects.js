@@ -452,23 +452,144 @@ export function formatBadge(raw) {
 
 const PRONOUN_I_RE = /^(i|i'm|i'd|i've|i'll)$/i;
 
+/** Longer phrases first so "Uncle Tim" wins over "Tim" if we add Tim later. */
+const PROPER_NAMES = [
+  'Guard Lady',
+  'Uncle Tim',
+  'Jonathan',
+  'Shepherd',
+  'Blueland',
+  'John',
+  'Duke',
+  'Sue',
+].sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length);
+
+function isWordChar(ch) {
+  return /[A-Za-z']/.test(ch);
+}
+
+function isAllCapsWord(word) {
+  const letters = word.replace(/'/g, '');
+  return letters.length > 0 && /[A-Za-z]/.test(letters) && letters === letters.toUpperCase();
+}
+
+function titleCaseWord(word) {
+  if (!word) return word;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+/** Collect plain words (tags skipped inside words) with letter index lists. */
+function extractCapitalizeWords(src) {
+  const words = [];
+  let i = 0;
+  while (i < src.length) {
+    if (src[i] === '<') {
+      const close = src.indexOf('>', i);
+      i = close === -1 ? i + 1 : close + 1;
+      continue;
+    }
+    if (/[A-Za-z]/.test(src[i])) {
+      const letterIndices = [];
+      let word = '';
+      while (i < src.length) {
+        if (src[i] === '<') {
+          const close = src.indexOf('>', i);
+          if (close === -1) break;
+          i = close + 1;
+          continue;
+        }
+        if (isWordChar(src[i])) {
+          if (/[A-Za-z]/.test(src[i])) letterIndices.push(i);
+          word += src[i];
+          i += 1;
+          continue;
+        }
+        break;
+      }
+      words.push({
+        word,
+        letterIndices,
+        allCaps: isAllCapsWord(word),
+        start: letterIndices[0],
+      });
+      continue;
+    }
+    i += 1;
+  }
+  return words;
+}
+
 /**
  * Apply standard English sentence capitalization to a tagged dialogue string.
  * Preserves <> effect tags. Lowercases letters, then capitalizes:
  * - the first letter of the line / each sentence (after . ? !)
  * - the pronoun I and common contractions (I'm, I've, …)
- * Ellipsis (... or …) does not start a new sentence — the following word stays lowercase.
+ * - known proper names (Sue, Duke, Guard Lady, …)
+ * Keeps stylistic ALL-CAPS runs of more than 2 words unchanged.
+ * Ellipsis (... or …) does not start a new sentence.
  */
 export function applyEnglishCapitalization(tagged) {
   const src = String(tagged ?? '');
   if (!src) return src;
 
+  const words = extractCapitalizeWords(src);
+
+  // Preserve ALL-CAPS runs longer than 2 words
+  const preserveLetter = new Set();
+  for (let w = 0; w < words.length; ) {
+    if (!words[w].allCaps) {
+      w += 1;
+      continue;
+    }
+    let run = 1;
+    while (w + run < words.length && words[w + run].allCaps) run += 1;
+    if (run > 2) {
+      for (let k = 0; k < run; k++) {
+        for (const idx of words[w + k].letterIndices) preserveLetter.add(idx);
+      }
+    }
+    w += run;
+  }
+
+  // Map word index → properly cased surface form for known names
+  const nameForm = new Map();
+  for (let w = 0; w < words.length; ) {
+    let matched = false;
+    for (const name of PROPER_NAMES) {
+      const parts = name.split(/\s+/);
+      if (w + parts.length > words.length) continue;
+      let ok = true;
+      for (let p = 0; p < parts.length; p++) {
+        if (words[w + p].word.toLowerCase() !== parts[p].toLowerCase()) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) continue;
+      for (let p = 0; p < parts.length; p++) {
+        nameForm.set(w + p, parts[p]);
+      }
+      w += parts.length;
+      matched = true;
+      break;
+    }
+    if (!matched) w += 1;
+  }
+
+  const wordByStart = new Map(words.map((w, idx) => [w.start, idx]));
+
   let out = '';
   let capitalizeNext = true;
   let i = 0;
+  let letterInWord = 0;
+  let activeWordIdx = -1;
 
-  function isWordChar(ch) {
-    return /[A-Za-z']/.test(ch);
+  function copyTagAt(from) {
+    if (src[from] !== '<') return from;
+    const close = src.indexOf('>', from);
+    if (close === -1) return from;
+    out += src.slice(from, close + 1);
+    return close + 1;
   }
 
   function lastPlainIsWordChar() {
@@ -485,34 +606,6 @@ export function applyEnglishCapitalization(tagged) {
     return false;
   }
 
-  function peekPlainWord(from) {
-    let word = '';
-    let j = from;
-    while (j < src.length) {
-      if (src[j] === '<') {
-        const close = src.indexOf('>', j);
-        if (close === -1) break;
-        j = close + 1;
-        continue;
-      }
-      if (isWordChar(src[j])) {
-        word += src[j];
-        j += 1;
-        continue;
-      }
-      break;
-    }
-    return word;
-  }
-
-  function copyTagAt(from) {
-    if (src[from] !== '<') return from;
-    const close = src.indexOf('>', from);
-    if (close === -1) return from;
-    out += src.slice(from, close + 1);
-    return close + 1;
-  }
-
   while (i < src.length) {
     if (src[i] === '<') {
       const next = copyTagAt(i);
@@ -525,18 +618,52 @@ export function applyEnglishCapitalization(tagged) {
     const ch = src[i];
     if (/[A-Za-z]/.test(ch)) {
       const atWordStart = !lastPlainIsWordChar();
+      if (atWordStart) {
+        activeWordIdx = wordByStart.has(i) ? wordByStart.get(i) : -1;
+        letterInWord = 0;
+      }
+
+      if (preserveLetter.has(i)) {
+        out += ch;
+        capitalizeNext = false;
+        letterInWord += 1;
+        i += 1;
+        continue;
+      }
+
+      if (activeWordIdx >= 0 && nameForm.has(activeWordIdx)) {
+        const form = nameForm.get(activeWordIdx);
+        const pos = letterInWord;
+        // Map onto letters only in the canonical name form
+        const formLetters = form.replace(/[^A-Za-z]/g, '');
+        out += formLetters[pos] ?? ch.toLowerCase();
+        capitalizeNext = false;
+        letterInWord += 1;
+        i += 1;
+        continue;
+      }
+
       let upper = false;
       if (atWordStart) {
-        const word = peekPlainWord(i);
+        const word = words[activeWordIdx]?.word ?? '';
         if (capitalizeNext || PRONOUN_I_RE.test(word)) upper = true;
       }
       out += upper ? ch.toUpperCase() : ch.toLowerCase();
       capitalizeNext = false;
+      letterInWord += 1;
       i += 1;
       continue;
     }
 
-    // Unicode ellipsis — not a sentence boundary
+    if (ch === "'") {
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    activeWordIdx = -1;
+    letterInWord = 0;
+
     if (ch === '…') {
       out += ch;
       capitalizeNext = false;
@@ -544,7 +671,6 @@ export function applyEnglishCapitalization(tagged) {
       continue;
     }
 
-    // Period run: single "." ends a sentence; "..." ellipsis does not
     if (ch === '.') {
       let dots = 0;
       while (i < src.length) {

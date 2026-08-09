@@ -190,7 +190,7 @@ const capped = await page.locator(`.visual-line[data-key="${line1Key}"]`).evalua
   return t;
 });
 assert(
-  capped === "It's duke. I know it's cool",
+  capped === "It's Duke. I know it's cool",
   `capitalize failed: ${JSON.stringify(capped)}`
 );
 
