@@ -38,25 +38,27 @@ console.assert(segs[1].text === 'OOOO!!' && segs[1].kind === 'strong' && segs[1]
 
 const segs2 = buildVisualSegments('I see...!<1> <.6>W<-1>e');
 console.assert(stripTags('I see...!<1> <.6>W<-1>e') === 'I see...! We');
-const slowRun = segs2.find((s) => s.tags && s.tags.includes('.6'));
-console.assert(slowRun && slowRun.tags.includes('1') && slowRun.tags.includes('.6'), 'cluster tags');
-const resetRun = segs2.find((s) => s.tags && s.tags.length === 1 && s.tags[0] === '-1');
-console.assert(resetRun, 'lone -1 must appear as its own balloon spot');
+const wRun = segs2.find((s) => s.text.includes('W') && s.tags && s.tags.includes('.6'));
+console.assert(wRun && wRun.tags.join(',') === '1,.6,-1', `W tags order got ${wRun && wRun.tags}`);
 
 const duke = buildVisualSegments("It's Duke.<1> <.6>I<-1> know");
+const dukeI = duke.find((s) => s.text.startsWith('I') && s.tags?.includes('.6'));
+console.assert(dukeI, 'Duke I segment');
 console.assert(
-  duke.some((s) => s.text.includes('I') && s.tags.includes('1') && s.tags.includes('.6')),
-  'Duke I cluster'
+  dukeI.tags.join(',') === '1,.6,-1',
+  `Duke I should be 1 · .6 · -1, got ${dukeI.tags}`
 );
+console.assert(dukeI.text === 'I', `balloon host should be letter I, got ${JSON.stringify(dukeI.text)}`);
 console.assert(
-  duke.some((s) => s.tags.length === 1 && s.tags[0] === '-1'),
-  'Duke -1 must not be hidden'
+  !duke.some((s) => s.text.includes('know') && s.tags.includes('-1')),
+  '-1 must not sit on a separate overlapping balloon'
 );
 
 const pause = buildVisualSegments('thinking...<.5> <-1>I never');
 const marked = pause.find((s) => s.tags.includes('.5') && s.tags.includes('-1'));
 console.assert(marked && marked.kind === 'superSlow', `reset-ending cluster should mark: ${JSON.stringify(marked)}`);
 console.assert(marked.text === 'I', `mark first letter, got ${JSON.stringify(marked)}`);
+console.assert(marked.tags.join(',') === '.5,-1', 'pause tag order');
 
 const multi = buildVisualSegments('Hi<30><.5>there');
 const mseg = multi.find((s) => s.text.includes('there'));

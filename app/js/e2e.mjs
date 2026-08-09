@@ -54,7 +54,8 @@ const line1Plain = await page.locator(`.visual-line[data-key="${line1Key}"]`).ev
 });
 assert(line1Plain.includes('WOO'), `Child line1 missing: ${line1Plain}`);
 assert(await page.locator('.fx-balloon[data-balloon="30"]').count(), 'missing balloon');
-assert(await page.locator('.fx-balloon[data-balloon="1 · .6"]').count(), 'missing stacked balloon');
+assert(await page.locator('.fx-balloon[data-balloon="1 · .6 · -1"]').count(), 'missing stacked balloon');
+assert(await page.locator('.fx-chip-dot').count(), 'missing chip separator dots');
 
 await page.locator('.char-tab', { hasText: 'Girl' }).click();
 await page.waitForTimeout(150);
