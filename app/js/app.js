@@ -10,11 +10,33 @@ import {
   stripTrailingTags,
 } from './effects.js';
 
-const SAMPLE_URL = './sample/dialogues.txt';
+const STORAGE_KEY = 'farwest-dialogue-characters-v1';
+
+function uid() {
+  return crypto.randomUUID?.() || `c-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function makeCharacter(name, days = [emptyDay()]) {
+  return {
+    id: uid(),
+    name: (name || 'Character').trim() || 'Character',
+    days: days.length ? days : [emptyDay()],
+    dayIndex: 0,
+  };
+}
+
+function cloneCharacters(chars) {
+  return chars.map((c) => ({
+    id: c.id,
+    name: c.name,
+    dayIndex: c.dayIndex ?? 0,
+    days: c.days.map((d) => ({ fields: { ...d.fields } })),
+  }));
+}
 
 const state = {
-  days: [emptyDay()],
-  dayIndex: 0,
+  characters: [],
+  characterIndex: 0,
   activeField: null,
   activePlainRange: { start: 0, end: 0 },
   stamp: null,
@@ -23,18 +45,33 @@ const state = {
   history: [],
   future: [],
   historyReady: false,
+  forceShow: {},
+  pendingFiles: [], // { name, text } queued in import dialog
 };
 
 const HISTORY_LIMIT = 80;
 
-function cloneDays(days) {
-  return days.map((d) => ({ fields: { ...d.fields } }));
+function currentCharacter() {
+  return state.characters[state.characterIndex] || null;
+}
+
+function currentDays() {
+  return currentCharacter()?.days || [];
+}
+
+function getDayIndex() {
+  return currentCharacter()?.dayIndex ?? 0;
+}
+
+function setDayIndex(i) {
+  const ch = currentCharacter();
+  if (ch) ch.dayIndex = i;
 }
 
 function snapshotNow() {
   return {
-    days: cloneDays(state.days),
-    dayIndex: state.dayIndex,
+    characters: cloneCharacters(state.characters),
+    characterIndex: state.characterIndex,
   };
 }
 
@@ -44,14 +81,17 @@ function pushHistory() {
   if (state.history.length > HISTORY_LIMIT) state.history.shift();
   state.future = [];
   updateHistoryButtons();
+  persist();
 }
 
 function restoreSnapshot(snap) {
-  state.days = cloneDays(snap.days);
-  state.dayIndex = Math.min(snap.dayIndex, state.days.length - 1);
+  state.characters = cloneCharacters(snap.characters);
+  state.characterIndex = Math.min(snap.characterIndex, Math.max(0, state.characters.length - 1));
   state.activeField = null;
+  state.forceShow = {};
   render();
   updateHistoryButtons();
+  persist();
 }
 
 function undo() {
@@ -75,13 +115,54 @@ function updateHistoryButtons() {
   if (r) r.disabled = state.future.length === 0;
 }
 
+function persist() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        characters: state.characters,
+        characterIndex: state.characterIndex,
+      })
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data.characters) || !data.characters.length) return false;
+    state.characters = data.characters.map((c) => ({
+      id: c.id || uid(),
+      name: c.name || 'Character',
+      dayIndex: c.dayIndex ?? 0,
+      days: (c.days?.length ? c.days : [emptyDay()]).map((d) => ({
+        fields: { ...(d.fields || {}) },
+      })),
+    }));
+    state.characterIndex = Math.min(data.characterIndex ?? 0, state.characters.length - 1);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const els = {
   dayBar: document.getElementById('day-bar'),
+  charBar: document.getElementById('char-bar'),
   treeRoot: document.getElementById('tree-root'),
   importDialog: document.getElementById('import-dialog'),
   exportDialog: document.getElementById('export-dialog'),
   importText: document.getElementById('import-text'),
+  importName: document.getElementById('import-name'),
+  importFiles: document.getElementById('import-files'),
+  importFileList: document.getElementById('import-file-list'),
+  dropZone: document.getElementById('drop-zone'),
   exportText: document.getElementById('export-text'),
+  exportCharLabel: document.getElementById('export-char-label'),
   toast: document.getElementById('toast'),
   customInput: document.getElementById('custom-tag-input'),
 };
@@ -93,38 +174,121 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     els.toast.hidden = true;
-  }, 2200);
+  }, 2400);
 }
 
 function currentDay() {
-  return state.days[state.dayIndex];
+  const days = currentDays();
+  return days[getDayIndex()] || null;
 }
 
 function setField(key, value) {
-  currentDay().fields[key] = value;
+  const day = currentDay();
+  if (!day) return;
+  day.fields[key] = value;
+  persist();
 }
 
 function mutate(fn) {
   pushHistory();
   fn();
+  persist();
 }
 
 function getField(key) {
-  return currentDay().fields[key] ?? '';
+  return currentDay()?.fields[key] ?? '';
 }
 
-/* ---------- Day bar ---------- */
-function renderDayBar() {
-  els.dayBar.innerHTML = '';
-  state.days.forEach((_, i) => {
+/* ---------- Character + day bars ---------- */
+function renderCharBar() {
+  els.charBar.innerHTML = '';
+
+  if (!state.characters.length) {
+    els.charBar.hidden = true;
+    return;
+  }
+  els.charBar.hidden = false;
+
+  const label = document.createElement('span');
+  label.className = 'char-bar-label';
+  label.textContent = 'Characters';
+  els.charBar.appendChild(label);
+
+  state.characters.forEach((ch, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'day-tab' + (i === state.dayIndex ? ' active' : '');
+    btn.className = 'char-tab' + (i === state.characterIndex ? ' active' : '');
+    btn.textContent = ch.name;
+    btn.title = `${ch.days.length} day(s)`;
+    btn.addEventListener('click', () => {
+      state.characterIndex = i;
+      state.activeField = null;
+      state.forceShow = {};
+      render();
+      persist();
+    });
+    els.charBar.appendChild(btn);
+  });
+
+  const rename = document.createElement('button');
+  rename.type = 'button';
+  rename.className = 'day-add';
+  rename.textContent = 'Rename';
+  rename.addEventListener('click', () => {
+    const ch = currentCharacter();
+    if (!ch) return;
+    const next = prompt('Character name', ch.name);
+    if (!next || !next.trim()) return;
+    mutate(() => {
+      ch.name = next.trim();
+    });
+    render();
+  });
+  els.charBar.appendChild(rename);
+
+  const rm = document.createElement('button');
+  rm.type = 'button';
+  rm.className = 'day-remove';
+  rm.textContent = 'Remove';
+  rm.addEventListener('click', () => {
+    const ch = currentCharacter();
+    if (!ch) return;
+    if (!confirm(`Remove ${ch.name}?`)) return;
+    mutate(() => {
+      state.characters.splice(state.characterIndex, 1);
+      state.characterIndex = Math.max(0, state.characterIndex - 1);
+    });
+    render();
+  });
+  els.charBar.appendChild(rm);
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'day-add';
+  add.textContent = '+ Import';
+  add.addEventListener('click', openImport);
+  els.charBar.appendChild(add);
+}
+
+function renderDayBar() {
+  els.dayBar.innerHTML = '';
+  const days = currentDays();
+  if (!currentCharacter()) {
+    els.dayBar.hidden = true;
+    return;
+  }
+  els.dayBar.hidden = false;
+
+  days.forEach((_, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'day-tab' + (i === getDayIndex() ? ' active' : '');
     btn.textContent = `Day ${i + 1}`;
     btn.addEventListener('click', () => {
-      state.dayIndex = i;
+      setDayIndex(i);
       state.activeField = null;
       render();
+      persist();
     });
     els.dayBar.appendChild(btn);
   });
@@ -135,22 +299,22 @@ function renderDayBar() {
   add.textContent = '+ Day';
   add.addEventListener('click', () => {
     mutate(() => {
-      state.days.push(emptyDay());
-      state.dayIndex = state.days.length - 1;
+      currentDays().push(emptyDay());
+      setDayIndex(currentDays().length - 1);
     });
     render();
   });
   els.dayBar.appendChild(add);
 
-  if (state.days.length > 1) {
+  if (days.length > 1) {
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'day-remove';
     rm.textContent = 'Remove day';
     rm.addEventListener('click', () => {
       mutate(() => {
-        state.days.splice(state.dayIndex, 1);
-        state.dayIndex = Math.max(0, state.dayIndex - 1);
+        currentDays().splice(getDayIndex(), 1);
+        setDayIndex(Math.max(0, getDayIndex() - 1));
       });
       render();
     });
@@ -370,6 +534,10 @@ function rememberSelectionFromActive() {
 }
 
 function applyStamp(effectKey) {
+  if (!currentCharacter()) {
+    toast('Import a character first');
+    return;
+  }
   rememberSelectionFromActive();
   if (!state.activeField) {
     toast('Select a dialogue line first');
@@ -610,6 +778,18 @@ function renderTree(keepScroll = false) {
   const scrollParent = els.treeRoot;
   const scrollTop = scrollParent.scrollTop;
 
+  if (!currentCharacter()) {
+    els.treeRoot.innerHTML = `
+      <div class="empty-state">
+        <h2>No characters yet</h2>
+        <p>Import your Unreal dialogue data assets to start editing.</p>
+        <button type="button" class="btn primary" id="btn-empty-import">Import DAs</button>
+        <p class="empty-hint">Tip: copy each DA’s dialogue array into a <code>.txt</code> named like <code>Child.txt</code>, <code>Girl.txt</code>, then drop them all at once.</p>
+      </div>`;
+    document.getElementById('btn-empty-import')?.addEventListener('click', openImport);
+    return;
+  }
+
   const tree = document.createElement('div');
   tree.className = 'tree';
 
@@ -719,52 +899,175 @@ function renderTree(keepScroll = false) {
 }
 
 function render() {
+  renderCharBar();
   renderDayBar();
   renderTree();
 }
 
 /* ---------- Import / Export ---------- */
-function replaceDocument(days, message, { record = true } = {}) {
-  if (record && state.historyReady) pushHistory();
-  state.days = days.length ? days : [emptyDay()];
-  state.dayIndex = 0;
-  state.forceShow = {};
-  if (record) state.future = [];
-  render();
-  updateHistoryButtons();
-  toast(message);
+function looksLikeBinary(text) {
+  if (!text) return true;
+  let nuls = 0;
+  const sample = text.slice(0, 8000);
+  for (let i = 0; i < sample.length; i++) if (sample.charCodeAt(i) === 0) nuls += 1;
+  return nuls > 5;
 }
 
-async function loadSample(opts = {}) {
-  try {
-    const res = await fetch(SAMPLE_URL);
-    const text = await res.text();
-    const { days, warnings } = parseDialogueAsset(text);
-    replaceDocument(days, `Loaded ${days.length} day(s)`, opts);
-    if (warnings.length) console.warn(warnings);
-  } catch (err) {
-    console.error(err);
-    toast('Could not load sample — use Import paste');
+function looksLikeDialoguePaste(text) {
+  const t = text.trim();
+  return /\(\s*\(/.test(t) || /Line1_\d+_/.test(t) || /Reply1_\d+_/.test(t);
+}
+
+function characterNameFromFile(filename) {
+  const base = filename.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
+  return base.replace(/[_-]+/g, ' ').replace(/\s+DA$/i, '').trim() || 'Character';
+}
+
+function upsertCharacter(name, days, { select = true } = {}) {
+  const existing = state.characters.findIndex(
+    (c) => c.name.toLowerCase() === name.toLowerCase()
+  );
+  if (existing >= 0) {
+    state.characters[existing].days = days;
+    state.characters[existing].dayIndex = 0;
+    if (select) state.characterIndex = existing;
+  } else {
+    state.characters.push(makeCharacter(name, days));
+    if (select) state.characterIndex = state.characters.length - 1;
   }
 }
 
+function importParsedCharacters(entries) {
+  // entries: [{ name, text }]
+  const imported = [];
+  const errors = [];
+  for (const entry of entries) {
+    const name = (entry.name || 'Character').trim();
+    const text = entry.text || '';
+    if (looksLikeBinary(text) || /\.uasset$/i.test(entry.filename || '')) {
+      errors.push(
+        `${name}: can’t read binary .uasset — copy the dialogue array to a .txt first`
+      );
+      continue;
+    }
+    if (!looksLikeDialoguePaste(text)) {
+      errors.push(`${name}: not a dialogue array paste`);
+      continue;
+    }
+    const { days, warnings } = parseDialogueAsset(text);
+    if (!days.length) {
+      errors.push(`${name}: no days found`);
+      continue;
+    }
+    upsertCharacter(name, days, { select: false });
+    imported.push(`${name} (${days.length}d)`);
+    if (warnings?.length) console.warn(name, warnings);
+  }
+  if (imported.length) {
+    // select last imported
+    const lastName = entries.filter((e) => imported.some((i) => i.startsWith(e.name))).at(-1)?.name;
+    const idx = state.characters.findIndex(
+      (c) => c.name.toLowerCase() === (lastName || '').toLowerCase()
+    );
+    if (idx >= 0) state.characterIndex = idx;
+    else state.characterIndex = state.characters.length - 1;
+  }
+  return { imported, errors };
+}
+
+function openImport() {
+  state.pendingFiles = [];
+  els.importText.value = '';
+  if (els.importName) els.importName.value = '';
+  renderPendingFiles();
+  els.importDialog.showModal();
+}
+
+function renderPendingFiles() {
+  if (!els.importFileList) return;
+  if (!state.pendingFiles.length) {
+    els.importFileList.hidden = true;
+    els.importFileList.innerHTML = '';
+    return;
+  }
+  els.importFileList.hidden = false;
+  els.importFileList.innerHTML = state.pendingFiles
+    .map(
+      (f, i) =>
+        `<div class="import-file-row"><strong>${escapeHtml(f.name)}</strong><span>${f.text.length.toLocaleString()} chars</span><button type="button" data-i="${i}" class="icon-btn" title="Remove">×</button></div>`
+    )
+    .join('');
+  els.importFileList.querySelectorAll('button[data-i]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.pendingFiles.splice(Number(btn.dataset.i), 1);
+      renderPendingFiles();
+    });
+  });
+}
+
+async function readDroppedFiles(fileList) {
+  const files = [...fileList];
+  for (const file of files) {
+    if (/\.uasset$/i.test(file.name)) {
+      toast(`${file.name}: drop a .txt paste, not the .uasset`);
+      continue;
+    }
+    const text = await file.text();
+    state.pendingFiles.push({
+      name: characterNameFromFile(file.name),
+      filename: file.name,
+      text,
+    });
+  }
+  renderPendingFiles();
+}
+
 function doImport() {
-  const text = els.importText.value;
-  const { days, warnings } = parseDialogueAsset(text);
-  replaceDocument(days, `Imported ${days.length} day(s)`);
+  const entries = [...state.pendingFiles];
+  const paste = els.importText.value.trim();
+  const pasteName = (els.importName?.value || '').trim();
+  if (paste) {
+    if (!pasteName && !entries.length) {
+      toast('Enter a character name for the paste');
+      return;
+    }
+    entries.push({
+      name: pasteName || 'Character',
+      text: paste,
+    });
+  }
+  if (!entries.length) {
+    toast('Add .txt files or a paste first');
+    return;
+  }
+
+  pushHistory();
+  const { imported, errors } = importParsedCharacters(entries);
+  state.forceShow = {};
+  state.pendingFiles = [];
   els.importDialog.close();
-  if (warnings.length) console.warn(warnings);
+  render();
+  persist();
+  updateHistoryButtons();
+
+  if (imported.length) toast(`Imported ${imported.join(', ')}`);
+  if (errors.length) {
+    console.warn(errors);
+    setTimeout(() => toast(errors[0]), 500);
+  }
 }
 
 function sanitizeTrailingTags() {
   let cleaned = 0;
-  for (const day of state.days) {
-    for (const key of Object.keys(day.fields)) {
-      const v = day.fields[key] ?? '';
-      const next = stripTrailingTags(v);
-      if (next !== v) {
-        day.fields[key] = next;
-        cleaned += 1;
+  for (const ch of state.characters) {
+    for (const day of ch.days) {
+      for (const key of Object.keys(day.fields)) {
+        const v = day.fields[key] ?? '';
+        const next = stripTrailingTags(v);
+        if (next !== v) {
+          day.fields[key] = next;
+          cleaned += 1;
+        }
       }
     }
   }
@@ -772,27 +1075,46 @@ function sanitizeTrailingTags() {
 }
 
 function openExport() {
+  if (!currentCharacter()) {
+    toast('Import a character first');
+    return;
+  }
   const cleaned = sanitizeTrailingTags();
   if (cleaned) {
-    // already mutated in place — record once
-    // (history was not pushed; optional — skip to avoid noise)
     renderTree(true);
     toast(`Removed ${cleaned} trailing tag(s) before export`);
+    persist();
   }
-  els.exportText.value = serializeDialogueAsset(state.days);
+  const ch = currentCharacter();
+  els.exportCharLabel.textContent = `Character: ${ch.name}`;
+  els.exportText.value = serializeDialogueAsset(ch.days);
   els.exportDialog.showModal();
 }
 
 async function copyExport() {
-  const text = els.exportText.value || serializeDialogueAsset(state.days);
+  const ch = currentCharacter();
+  const text = els.exportText.value || (ch ? serializeDialogueAsset(ch.days) : '');
   try {
     await navigator.clipboard.writeText(text);
-    toast('Copied to clipboard');
+    toast(`Copied ${ch?.name || ''} to clipboard`);
   } catch {
     els.exportText.select();
     document.execCommand('copy');
     toast('Copied');
   }
+}
+
+function downloadExport() {
+  const ch = currentCharacter();
+  if (!ch) return;
+  const text = els.exportText.value || serializeDialogueAsset(ch.days);
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${ch.name}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`Downloaded ${ch.name}.txt`);
 }
 
 /* ---------- Wire UI ---------- */
@@ -830,16 +1152,46 @@ document.getElementById('btn-custom-tag').addEventListener('click', () => {
   toast(`Inserted <${raw}>`);
 });
 
-document.getElementById('btn-import').addEventListener('click', () => {
-  els.importText.value = '';
-  els.importDialog.showModal();
-});
+document.getElementById('btn-import').addEventListener('click', openImport);
 document.getElementById('btn-import-confirm').addEventListener('click', doImport);
-document.getElementById('btn-load-sample').addEventListener('click', loadSample);
 document.getElementById('btn-export').addEventListener('click', openExport);
 document.getElementById('btn-copy-export').addEventListener('click', copyExport);
+document.getElementById('btn-download-export')?.addEventListener('click', downloadExport);
 document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-redo').addEventListener('click', redo);
+
+els.dropZone?.addEventListener('click', () => els.importFiles?.click());
+els.importFiles?.addEventListener('change', async (e) => {
+  await readDroppedFiles(e.target.files);
+  e.target.value = '';
+});
+['dragenter', 'dragover'].forEach((ev) => {
+  els.dropZone?.addEventListener(ev, (e) => {
+    e.preventDefault();
+    els.dropZone.classList.add('drag');
+  });
+});
+els.dropZone?.addEventListener('dragleave', () => els.dropZone.classList.remove('drag'));
+els.dropZone?.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  els.dropZone.classList.remove('drag');
+  await readDroppedFiles(e.dataTransfer.files);
+});
+
+// Also allow dropping files onto the whole app when empty / anytime
+window.addEventListener('dragover', (e) => {
+  if ([...e.dataTransfer.types].includes('Files')) e.preventDefault();
+});
+window.addEventListener('drop', async (e) => {
+  if (![...e.dataTransfer.types].includes('Files')) return;
+  // Ignore drops that hit the dialog zone handler already
+  if (e.target.closest?.('#drop-zone')) return;
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (!files?.length) return;
+  openImport();
+  await readDroppedFiles(files);
+});
 
 document.addEventListener(
   'keydown',
@@ -867,12 +1219,14 @@ document.addEventListener(
   true
 );
 
-// Boot — history is live immediately so Undo works after the first edit
+// Boot
 state.historyReady = true;
+if (!loadPersisted()) {
+  state.characters = [];
+  state.characterIndex = 0;
+}
 render();
 updateHistoryButtons();
-loadSample({ record: false }).finally(() => {
-  state.history = [];
-  state.future = [];
-  updateHistoryButtons();
-});
+state.history = [];
+state.future = [];
+updateHistoryButtons();

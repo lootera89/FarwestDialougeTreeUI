@@ -16,14 +16,13 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <div>
           <h1>Farwest Dialogue Tree</h1>
-          <p class="tagline">Paste Unreal DA text · edit like blocks · copy effects without the brackets</p>
+          <p class="tagline">Import character DAs · edit like blocks · copy back to Unreal</p>
         </div>
       </div>
       <div class="top-actions">
         <button type="button" class="btn ghost" id="btn-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
         <button type="button" class="btn ghost" id="btn-redo" title="Redo (Ctrl+Y)" disabled>Redo</button>
-        <button type="button" class="btn ghost" id="btn-import">Import paste</button>
-        <button type="button" class="btn ghost" id="btn-load-sample">Load sample</button>
+        <button type="button" class="btn ghost" id="btn-import">Import DAs</button>
         <button type="button" class="btn primary" id="btn-export">Copy Unreal code</button>
       </div>
     </header>
@@ -86,6 +85,7 @@
       </aside>
 
       <main class="stage">
+        <div class="char-bar" id="char-bar"></div>
         <div class="day-bar" id="day-bar"></div>
         <div class="tree-scroll" id="tree-root"></div>
       </main>
@@ -93,13 +93,39 @@
   </div>
 
   <dialog id="import-dialog">
-    <form method="dialog" class="dialog-card">
-      <h2>Import Unreal DA paste</h2>
-      <p>Paste the TArray text from your data asset (the <code>((Line1=…),(Line1=…))</code> blob).</p>
+    <form method="dialog" class="dialog-card import-card">
+      <h2>Import character data assets</h2>
+      <p class="import-lead">
+        Unreal <code>.uasset</code> files are binary — the browser can’t open them raw.
+        Copy each DA’s dialogue array as text (one file per character), then drop them here.
+      </p>
+
+      <ol class="import-steps">
+        <li>Open a character DA (Child, Girl, GuardWomen…)</li>
+        <li>Click the dialogue <strong>array</strong> property in Details</li>
+        <li><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Cmd</kbd>+<kbd>C</kbd></li>
+        <li>Paste into a text file named after the character, e.g. <code>Child.txt</code></li>
+        <li>Drop all those <code>.txt</code> files below (or paste one at a time)</li>
+      </ol>
+
+      <div class="drop-zone" id="drop-zone" tabindex="0">
+        <strong>Drop character .txt files here</strong>
+        <span>or click to choose multiple files</span>
+        <input id="import-files" type="file" accept=".txt,.text,.clipboard,text/plain" multiple hidden />
+      </div>
+      <div class="import-file-list" id="import-file-list" hidden></div>
+
+      <div class="import-divider"><span>or paste one character</span></div>
+
+      <label class="field-label" for="import-name">Character name</label>
+      <input id="import-name" type="text" placeholder="e.g. Girl" autocomplete="off" />
+
+      <label class="field-label" for="import-text">DA paste</label>
       <textarea id="import-text" spellcheck="false" placeholder="((Line1_9_…=&quot;Hello&quot;,…),…)"></textarea>
+
       <div class="dialog-actions">
         <button type="submit" class="btn ghost" value="cancel">Cancel</button>
-        <button type="button" class="btn primary" id="btn-import-confirm">Load</button>
+        <button type="button" class="btn primary" id="btn-import-confirm">Import</button>
       </div>
     </form>
   </dialog>
@@ -107,9 +133,11 @@
   <dialog id="export-dialog">
     <form method="dialog" class="dialog-card">
       <h2>Unreal paste</h2>
-      <p>Copy this back into your data asset / clipboard workflow.</p>
+      <p>Copy this back into the selected character’s data asset array.</p>
+      <p class="export-char-label" id="export-char-label"></p>
       <textarea id="export-text" spellcheck="false" readonly></textarea>
       <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="btn-download-export">Download .txt</button>
         <button type="button" class="btn primary" id="btn-copy-export">Copy to clipboard</button>
         <button type="submit" class="btn ghost" value="ok">Close</button>
       </div>
