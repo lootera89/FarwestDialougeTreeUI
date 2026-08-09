@@ -41,7 +41,7 @@ const state = {
   activeField: null,
   activePlainRange: { start: 0, end: 0 },
   stamp: null,
-  showRaw: false,
+  showRaw: true,
   editMode: 'visual',
   history: [],
   future: [],
@@ -364,10 +364,8 @@ function renderVisualHTML(tagged) {
   const segs = buildVisualSegments(tagged);
   return segs
     .map((s) => {
-      const tags = (s.tags || []).filter(Boolean);
-      // Don't litter balloons with lone resets; still show them if stacked with others
-      const commentTags =
-        tags.length === 1 && tags[0] === '-1' ? [] : tags;
+      // Always surface every tag in the cluster — including <-1>
+      const commentTags = (s.tags || []).filter(Boolean);
       const balloon = renderBalloon(commentTags);
 
       if (s.kind === 'orphan') {

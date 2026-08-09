@@ -40,6 +40,23 @@ const segs2 = buildVisualSegments('I see...!<1> <.6>W<-1>e');
 console.assert(stripTags('I see...!<1> <.6>W<-1>e') === 'I see...! We');
 const slowRun = segs2.find((s) => s.tags && s.tags.includes('.6'));
 console.assert(slowRun && slowRun.tags.includes('1') && slowRun.tags.includes('.6'), 'cluster tags');
+const resetRun = segs2.find((s) => s.tags && s.tags.length === 1 && s.tags[0] === '-1');
+console.assert(resetRun, 'lone -1 must appear as its own balloon spot');
+
+const duke = buildVisualSegments("It's Duke.<1> <.6>I<-1> know");
+console.assert(
+  duke.some((s) => s.text.includes('I') && s.tags.includes('1') && s.tags.includes('.6')),
+  'Duke I cluster'
+);
+console.assert(
+  duke.some((s) => s.tags.length === 1 && s.tags[0] === '-1'),
+  'Duke -1 must not be hidden'
+);
+
+const pause = buildVisualSegments('thinking...<.5> <-1>I never');
+const marked = pause.find((s) => s.tags.includes('.5') && s.tags.includes('-1'));
+console.assert(marked && marked.kind === 'superSlow', `reset-ending cluster should mark: ${JSON.stringify(marked)}`);
+console.assert(marked.text === 'I', `mark first letter, got ${JSON.stringify(marked)}`);
 
 const multi = buildVisualSegments('Hi<30><.5>there');
 const mseg = multi.find((s) => s.text.includes('there'));
