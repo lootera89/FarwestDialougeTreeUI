@@ -1,0 +1,15 @@
+{
+  "name": "farwest-dialogue-tree-ui",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Scratch-style Unreal dialogue data asset editor",
+  "scripts": {
+    "start": "npx --yes serve app -p 5173",
+    "test": "node app/js/smoke-test.mjs",
+    "test:e2e": "node app/js/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}
