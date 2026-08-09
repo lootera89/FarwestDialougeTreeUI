@@ -243,18 +243,32 @@ export function applyEffectToSelection(tagged, plainStart, plainEnd, presetKey) 
 
   let { start, end } = plainRangeToTaggedRange(text, plainStart, plainEnd);
 
+  // When re-stamping speed, only strip speed/reset tags so shake tags can stack.
+  // Clear strips everything in range.
   if (end >= start && (presetKey === 'clear' || preset?.kind === 'speed')) {
+    const shouldStrip = (raw) => {
+      if (presetKey === 'clear') return true;
+      const k = classifyEffect(raw).kind;
+      return k === 'slow' || k === 'superSlow' || k === 'reset';
+    };
+
+    // Expand over adjacent tags of the kinds we strip
     while (start > 0 && text[start - 1] === '>') {
       const open = text.lastIndexOf('<', start - 1);
       if (open === -1) break;
+      const raw = text.slice(open + 1, start - 1);
+      if (!shouldStrip(raw)) break;
       start = open;
     }
     while (end < text.length && text[end] === '<') {
       const close = text.indexOf('>', end);
       if (close === -1) break;
+      const raw = text.slice(end + 1, close);
+      if (!shouldStrip(raw)) break;
       end = close + 1;
     }
-    const cleaned = text.slice(start, end).replace(TAG_RE, '');
+
+    const cleaned = text.slice(start, end).replace(TAG_RE, (full, raw) => (shouldStrip(raw) ? '' : full));
     text = text.slice(0, start) + cleaned + text.slice(end);
     ({ start, end } = plainRangeToTaggedRange(text, plainStart, plainEnd));
   }
@@ -265,15 +279,14 @@ export function applyEffectToSelection(tagged, plainStart, plainEnd, presetKey) 
   }
 
   if (preset.kind === 'speed') {
-    // <-1> only needed when more letters follow in this same string
     const needsReset = stripTags(text.slice(end)).length > 0;
     const wrapped =
       `<${preset.tag}>` + text.slice(start, end) + (needsReset ? `<-1>` : '');
     text = text.slice(0, start) + wrapped + text.slice(end);
   } else if (preset.kind === 'shake' || preset.kind === 'strong') {
+    // Insert in front of selection; keep any existing tags so stacks show in the balloon
     text = text.slice(0, start) + `<${preset.tag}>` + text.slice(start);
   } else if (preset.kind === 'reset') {
-    // Reset at very end is a no-op — skip it
     if (stripTags(text.slice(start)).length === 0) {
       return { text, error: 'Reset at the end does nothing' };
     }

@@ -60,6 +60,19 @@ const multi = buildVisualSegments('Hi<30><.5>there');
 const mseg = multi.find((s) => s.text.includes('there'));
 console.assert(mseg && mseg.tags.join(',') === '30,.5', `adjacent tags got ${mseg && mseg.tags}`);
 
+// Shake then slow should stack
+let stacked = applyEffectToSelection('Hello world', 6, 11, 'shake');
+stacked = applyEffectToSelection(stacked.text, 6, 11, 'slow');
+console.assert(
+  stacked.text.includes('<3>') && stacked.text.includes('<.15>'),
+  `stack apply got ${stacked.text}`
+);
+const stackSegs = buildVisualSegments(stacked.text);
+console.assert(
+  stackSegs.some((s) => (s.tags || []).includes('3') && (s.tags || []).includes('.15')),
+  'stack visual tags'
+);
+
 const orphanSegs = buildVisualSegments('Hello<.5>');
 console.assert(orphanSegs.some((s) => s.kind === 'orphan'), 'orphan marker');
 console.assert(hasTrailingTags('Hello<.5>'));

@@ -449,49 +449,47 @@ body { min-height: 100vh; }
 
 .fx-plain { background: transparent; }
 
-/* Comic-style comment floating above the letters — text stays continuous */
-.fx-run {
+.fx-chunk {
   position: relative;
-  border-radius: 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  display: inline;
 }
-.fx-run[data-comment]::after,
-.fx-orphan[data-comment]::after {
-  content: attr(data-comment);
+
+/* Real balloon above letters — never participates in text layout */
+.fx-balloon {
   position: absolute;
   left: 0;
-  bottom: calc(100% - 0.05em);
-  max-width: min(16rem, 70vw);
-  padding: 0.12em 0.4em;
+  bottom: calc(100% + 1px);
+  z-index: 5;
+  padding: 0.12em 0.42em;
   border-radius: 6px;
   font-size: 0.58rem;
   font-weight: 800;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  line-height: 1.2;
+  line-height: 1.15;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  max-width: 14rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: #2a3444;
+  background: #243040;
   color: #fff8ee;
   pointer-events: none;
   user-select: none;
-  z-index: 2;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 2px 6px rgba(20, 28, 36, 0.18);
+  box-shadow: 0 2px 6px rgba(20, 28, 36, 0.2);
 }
-.fx-run[data-comment]::before,
-.fx-orphan[data-comment]::before {
+.fx-balloon::after {
   content: "";
   position: absolute;
-  left: 0.45em;
-  bottom: calc(100% - 0.28em);
-  width: 0;
-  height: 0;
+  left: 0.4em;
+  top: 100%;
   border: 4px solid transparent;
-  border-top-color: #2a3444;
-  pointer-events: none;
-  z-index: 2;
+  border-top-color: #243040;
+}
+
+.fx-run {
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .fx-slow { background: var(--fx-slow); }
@@ -508,14 +506,18 @@ body { min-height: 100vh; }
 }
 .fx-orphan {
   display: inline-block;
-  position: relative;
-  width: 0.55em;
-  height: 1em;
-  margin: 0 0.1em;
+  width: 0.45em;
+  height: 0.95em;
+  margin: 0 0.05em;
   vertical-align: baseline;
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--fx-orphan);
-  box-shadow: inset 0 0 0 1px rgba(28, 36, 48, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(28, 36, 48, 0.14);
+}
+.fx-chunk-orphan {
+  display: inline-block;
+  width: 0.45em;
+  position: relative;
 }
 .btn:disabled {
   opacity: 0.4;

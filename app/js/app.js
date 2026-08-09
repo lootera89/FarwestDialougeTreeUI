@@ -168,16 +168,20 @@ function renderVisualHTML(tagged) {
   const segs = buildVisualSegments(tagged);
   return segs
     .map((s) => {
-      const tags = s.tags || [];
-      const comment = tags.length ? escapeHtml(tags.join(' · ')) : '';
+      const tags = (s.tags || []).filter(Boolean);
+      // Don't litter balloons with lone resets; still show them if stacked with others
+      const commentTags =
+        tags.length === 1 && tags[0] === '-1' ? [] : tags;
+      const comment = commentTags.length ? escapeHtml(commentTags.join(' · ')) : '';
+      const balloon = comment
+        ? `<span class="fx-balloon" contenteditable="false" data-balloon="${comment}">${comment}</span>`
+        : '';
+
       if (s.kind === 'orphan') {
-        return `<span class="fx-orphan" contenteditable="false" data-kind="orphan"${
-          comment ? ` data-comment="${comment}"` : ''
-        } title="Tag at end of line — nothing after it plays"></span>`;
+        return `<span class="fx-chunk fx-chunk-orphan" contenteditable="false">${balloon}<span class="fx-orphan" data-kind="orphan"></span></span>`;
       }
       const safe = escapeHtml(s.text);
-      const cattr = comment ? ` data-comment="${comment}"` : '';
-      return `<span class="fx-run ${effectClassName(s.kind)}" data-kind="${s.kind}"${cattr}>${safe}</span>`;
+      return `<span class="fx-chunk">${balloon}<span class="fx-run ${effectClassName(s.kind)}" data-kind="${s.kind}">${safe}</span></span>`;
     })
     .join('');
 }
@@ -190,6 +194,39 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function isBalloonNode(node) {
+  const el = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  return !!(el && el.closest && el.closest('.fx-balloon, .fx-orphan, .fx-chunk-orphan'));
+}
+
+/** Plain letters only — balloons never count. */
+function visualPlainText(visualEl) {
+  let out = '';
+  const walk = document.createTreeWalker(visualEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return isBalloonNode(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  let n;
+  while ((n = walk.nextNode())) out += n.textContent;
+  return out;
+}
+
+function plainLengthBefore(visualEl, targetNode, targetOffset) {
+  let len = 0;
+  const walk = document.createTreeWalker(visualEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return isBalloonNode(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  let n;
+  while ((n = walk.nextNode())) {
+    if (n === targetNode) return len + targetOffset;
+    len += n.textContent.length;
+  }
+  return len;
+}
+
 /** Get plain caret/selection offsets inside a visual-line contenteditable. */
 function getPlainSelectionOffsets(visualEl) {
   const sel = window.getSelection();
@@ -197,23 +234,18 @@ function getPlainSelectionOffsets(visualEl) {
     return null;
   }
   const range = sel.getRangeAt(0);
-
-  const preStart = document.createRange();
-  preStart.selectNodeContents(visualEl);
-  preStart.setEnd(range.startContainer, range.startOffset);
-  const start = preStart.toString().length;
-
-  const preEnd = document.createRange();
-  preEnd.selectNodeContents(visualEl);
-  preEnd.setEnd(range.endContainer, range.endOffset);
-  const end = preEnd.toString().length;
-
+  const start = plainLengthBefore(visualEl, range.startContainer, range.startOffset);
+  const end = plainLengthBefore(visualEl, range.endContainer, range.endOffset);
   return { start: Math.min(start, end), end: Math.max(start, end) };
 }
 
 function setPlainSelection(visualEl, start, end) {
   const textNodes = [];
-  const walk = document.createTreeWalker(visualEl, NodeFilter.SHOW_TEXT);
+  const walk = document.createTreeWalker(visualEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return isBalloonNode(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    },
+  });
   let n;
   while ((n = walk.nextNode())) textNodes.push(n);
 
@@ -250,24 +282,7 @@ function setPlainSelection(visualEl, start, end) {
  * between spans based on kind transitions.
  */
 function visualDomToTagged(visualEl, previousTagged) {
-  // Reconstruct from spans: when kind changes from previous char's kind, emit tag.
-  // We don't know exact tag values from class alone — recover from previousTagged segments.
-  const prevSegs = buildVisualSegments(previousTagged);
-  const spans = [...visualEl.querySelectorAll(':scope > span')];
-
-  // If DOM collapsed oddly, fall back to plain strip replacement of all text
-  if (!spans.length) {
-    const plain = visualEl.textContent ?? '';
-    // If no effects in previous, just return plain
-    if (!/<[^>]+>/.test(previousTagged ?? '')) return plain;
-    // Keep previous tags only if plain text length matches strip — else replace all
-    if (plain === stripTags(previousTagged)) return previousTagged;
-    return plain;
-  }
-
-  // Prefer recovering exact tags from previousTagged by walking tokens
-  // and substituting text token values from corresponding plain sequence.
-  return rebuildTaggedFromPlain(previousTagged, visualEl.textContent ?? '');
+  return rebuildTaggedFromPlain(previousTagged, visualPlainText(visualEl));
 }
 
 /**
@@ -709,23 +724,23 @@ function render() {
 }
 
 /* ---------- Import / Export ---------- */
-function replaceDocument(days, message) {
-  if (state.historyReady) pushHistory();
+function replaceDocument(days, message, { record = true } = {}) {
+  if (record && state.historyReady) pushHistory();
   state.days = days.length ? days : [emptyDay()];
   state.dayIndex = 0;
   state.forceShow = {};
-  state.future = [];
+  if (record) state.future = [];
   render();
   updateHistoryButtons();
   toast(message);
 }
 
-async function loadSample() {
+async function loadSample(opts = {}) {
   try {
     const res = await fetch(SAMPLE_URL);
     const text = await res.text();
     const { days, warnings } = parseDialogueAsset(text);
-    replaceDocument(days, `Loaded ${days.length} day(s)`);
+    replaceDocument(days, `Loaded ${days.length} day(s)`, opts);
     if (warnings.length) console.warn(warnings);
   } catch (err) {
     console.error(err);
@@ -826,32 +841,38 @@ document.getElementById('btn-copy-export').addEventListener('click', copyExport)
 document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-redo').addEventListener('click', redo);
 
-document.addEventListener('keydown', (e) => {
-  const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-    e.preventDefault();
-    undo();
-    return;
-  }
-  if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
-    e.preventDefault();
-    redo();
-    return;
-  }
-  if (!mod || !e.shiftKey) return;
-  const map = { Digit1: 'slow', Digit2: 'superSlow', Digit3: 'shake', Digit4: 'strongShake' };
-  if (map[e.code]) {
-    e.preventDefault();
-    applyStamp(map[e.code]);
-  }
-});
+document.addEventListener(
+  'keydown',
+  (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      undo();
+      return;
+    }
+    if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      e.stopPropagation();
+      redo();
+      return;
+    }
+    if (!mod || !e.shiftKey) return;
+    const map = { Digit1: 'slow', Digit2: 'superSlow', Digit3: 'shake', Digit4: 'strongShake' };
+    if (map[e.code]) {
+      e.preventDefault();
+      applyStamp(map[e.code]);
+    }
+  },
+  true
+);
 
-// Boot
+// Boot — history is live immediately so Undo works after the first edit
+state.historyReady = true;
 render();
 updateHistoryButtons();
-loadSample().finally(() => {
+loadSample({ record: false }).finally(() => {
   state.history = [];
   state.future = [];
-  state.historyReady = true;
   updateHistoryButtons();
 });
