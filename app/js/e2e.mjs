@@ -194,5 +194,38 @@ assert(
   `capitalize failed: ${JSON.stringify(capped)}`
 );
 
+// Quick copy / paste on active character (no dialog)
+await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+assert(await page.locator('#btn-quick-copy').count(), 'quick copy missing');
+assert(await page.locator('#btn-quick-paste').count(), 'quick paste missing');
+await page.locator('#btn-quick-copy').click();
+await page.waitForTimeout(200);
+const copied = await page.evaluate(() => navigator.clipboard.readText());
+assert(/Line1_\d+_/.test(copied), `quick copy did not serialize DA: ${copied.slice(0, 80)}`);
+
+await page.evaluate(() =>
+  navigator.clipboard.writeText(
+    `((Line1_9_8D8F2CF34BC4E1C347039CBFC9454FA5="Pasted via quick button"))`
+  )
+);
+await page.locator('#btn-quick-paste').click();
+await page.waitForTimeout(400);
+const pasted = await page.locator(`.visual-line[data-key="${line1Key}"]`).evaluate((el) => {
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return node.parentElement?.closest('.fx-balloon')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  let t = '';
+  let n;
+  while ((n = walk.nextNode())) t += n.textContent;
+  return t;
+});
+assert(pasted.includes('Pasted via quick button'), `quick paste failed: ${pasted}`);
+assert(!(await page.locator('#export-dialog').isVisible()), 'export dialog should stay closed');
+assert(!(await page.locator('#import-dialog').isVisible()), 'import dialog should stay closed');
+
 console.log('E2E OK');
 await browser.close();

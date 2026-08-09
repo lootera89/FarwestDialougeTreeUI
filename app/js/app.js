@@ -1267,6 +1267,82 @@ function openExport() {
   els.exportDialog.showModal();
 }
 
+function sanitizeCharacterTrailingTags(ch) {
+  let cleaned = 0;
+  for (const day of ch.days) {
+    for (const key of Object.keys(day.fields)) {
+      const v = day.fields[key] ?? '';
+      const next = stripTrailingTags(v);
+      if (next !== v) {
+        day.fields[key] = next;
+        cleaned += 1;
+      }
+    }
+  }
+  return cleaned;
+}
+
+/** Copy active character DA to clipboard — no dialog. */
+async function quickCopyFile() {
+  const ch = currentCharacter();
+  if (!ch) {
+    toast('Import a character first');
+    return;
+  }
+  const cleaned = sanitizeCharacterTrailingTags(ch);
+  if (cleaned) persist();
+  const text = serializeDialogueAsset(ch.days);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Copied ${ch.name}`);
+  } catch {
+    toast('Clipboard copy failed');
+  }
+}
+
+/** Paste clipboard DA into the active character tab — no dialog. */
+async function quickPasteFile() {
+  let text = '';
+  try {
+    text = await navigator.clipboard.readText();
+  } catch {
+    toast('Allow clipboard access to paste');
+    return;
+  }
+  text = String(text || '').trim();
+  if (!text) {
+    toast('Clipboard is empty');
+    return;
+  }
+  if (looksLikeBinary(text) || !looksLikeDialoguePaste(text)) {
+    toast('Clipboard is not a dialogue array paste');
+    return;
+  }
+  const { days, warnings } = parseDialogueAsset(text);
+  if (!days.length) {
+    toast('No days found in clipboard');
+    return;
+  }
+  if (warnings?.length) console.warn(warnings);
+
+  const ch = currentCharacter();
+  if (!ch) {
+    mutate(() => {
+      upsertCharacter('Character', days, { select: true });
+    });
+    render();
+    toast(`Pasted ${days.length} day(s)`);
+    return;
+  }
+
+  mutate(() => {
+    ch.days = days;
+    ch.dayIndex = Math.min(ch.dayIndex ?? 0, Math.max(0, days.length - 1));
+  });
+  render();
+  toast(`Pasted into ${ch.name}`);
+}
+
 async function copyExport() {
   const ch = currentCharacter();
   const text = els.exportText.value || (ch ? serializeDialogueAsset(ch.days) : '');
@@ -1336,6 +1412,12 @@ document.getElementById('btn-download-export')?.addEventListener('click', downlo
 document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-redo').addEventListener('click', redo);
 document.getElementById('btn-capitalize').addEventListener('click', capitalizeCurrentCharacter);
+document.getElementById('btn-quick-copy').addEventListener('click', () => {
+  quickCopyFile();
+});
+document.getElementById('btn-quick-paste').addEventListener('click', () => {
+  quickPasteFile();
+});
 
 els.dropZone?.addEventListener('click', () => els.importFiles?.click());
 els.importFiles?.addEventListener('change', async (e) => {
