@@ -1,6 +1,7 @@
 {
   "name": "farwest-dialogue-tree-ui",
   "private": true,
+  "type": "module",
   "version": "1.0.0",
   "description": "Scratch-style Unreal dialogue data asset editor",
   "scripts": {

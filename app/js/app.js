@@ -9,7 +9,7 @@ import {
   stripTags,
 } from './effects.js';
 
-const SAMPLE_URL = '../sample/dialogues.txt';
+const SAMPLE_URL = './sample/dialogues.txt';
 
 const state = {
   days: [emptyDay()],
