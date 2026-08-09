@@ -384,7 +384,8 @@ function renderVisualHTML(tagged) {
         return `<span class="fx-chunk fx-chunk-orphan" contenteditable="false">${balloon}<span class="fx-orphan" data-kind="orphan"></span></span>`;
       }
       const safe = escapeHtml(s.text);
-      return `<span class="fx-chunk">${balloon}<span class="fx-run ${effectClassName(s.kind)}" data-kind="${s.kind}">${safe}</span></span>`;
+      const taggedClass = commentTags.length ? ' fx-chunk-tagged' : '';
+      return `<span class="fx-chunk${taggedClass}">${balloon}<span class="fx-run ${effectClassName(s.kind)}" data-kind="${s.kind}">${safe}</span></span>`;
     })
     .join('');
 }
@@ -392,21 +393,26 @@ function renderVisualHTML(tagged) {
 /**
  * Nearby short runs (I / kn / o) place wide chip rows on top of each other.
  * Measure balloons and lift colliding ones into vertical tiers so nothing overlaps.
+ * Lift is applied with inline transform/bottom so it still works if CSS is stale-cached.
  */
 function layoutBalloons(visualEl) {
   if (!visualEl) return;
   const balloons = [...visualEl.querySelectorAll('.fx-balloon')];
   for (const b of balloons) {
     b.style.removeProperty('--balloon-lift');
+    b.style.removeProperty('transform');
+    b.style.removeProperty('bottom');
+    b.style.removeProperty('z-index');
     delete b.dataset.tier;
   }
   visualEl.style.removeProperty('--balloon-stack-pad');
+  visualEl.style.removeProperty('padding-top');
   if (!balloons.length) return;
 
-  const padX = 8;
-  const tierGap = 5;
+  const padX = 10;
+  const tierGap = 8;
   const heights = balloons.map((b) => b.getBoundingClientRect().height);
-  const rowH = Math.max(18, ...heights) + tierGap;
+  const rowH = Math.max(20, ...heights) + tierGap;
 
   const items = balloons.map((el) => {
     const r = el.getBoundingClientRect();
@@ -414,7 +420,7 @@ function layoutBalloons(visualEl) {
   });
 
   // Skip if layout isn't ready (detached / hidden)
-  if (items.every((it) => it.width === 0)) return;
+  if (items.every((it) => it.width === 0)) return false;
 
   const placed = [];
   let maxTier = 0;
@@ -433,13 +439,37 @@ function layoutBalloons(visualEl) {
     item.tier = tier;
     maxTier = Math.max(maxTier, tier);
     placed.push({ left: item.left, right: item.right, tier });
+    const lift = tier * rowH;
     item.el.dataset.tier = String(tier);
-    item.el.style.setProperty('--balloon-lift', `${tier * rowH}px`);
-    item.el.style.zIndex = String(10 - tier);
+    item.el.style.setProperty('--balloon-lift', `${lift}px`);
+    // Inline styles beat stale cached CSS that omits --balloon-lift
+    item.el.style.bottom = `calc(100% + 4px + ${lift}px)`;
+    item.el.style.transform = 'none';
+    item.el.style.zIndex = String(20 - tier);
   }
 
-  const basePad = 30;
-  visualEl.style.setProperty('--balloon-stack-pad', `${basePad + maxTier * rowH}px`);
+  const basePad = 32;
+  const padTop = basePad + maxTier * rowH;
+  visualEl.style.setProperty('--balloon-stack-pad', `${padTop}px`);
+  visualEl.style.paddingTop = `${padTop}px`;
+  return true;
+}
+
+function balloonsStillClash(visualEl) {
+  const balloons = [...visualEl.querySelectorAll('.fx-balloon')].map((b) => {
+    const r = b.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  });
+  for (let i = 0; i < balloons.length; i++) {
+    for (let j = i + 1; j < balloons.length; j++) {
+      const a = balloons[i];
+      const b = balloons[j];
+      const hOverlap = a.x < b.x + b.w && a.x + a.w > b.x;
+      const vOverlap = a.y < b.y + b.h && a.y + a.h > b.y;
+      if (hOverlap && vOverlap) return true;
+    }
+  }
+  return false;
 }
 
 function layoutAllBalloons() {
@@ -447,10 +477,23 @@ function layoutAllBalloons() {
 }
 
 function scheduleBalloonLayout(visualEl) {
+  const run = () => {
+    if (visualEl) layoutBalloons(visualEl);
+    else layoutAllBalloons();
+  };
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      if (visualEl) layoutBalloons(visualEl);
-      else layoutAllBalloons();
+      run();
+      // Retry while fonts/layout settle — catches first-paint zero widths & stale CSS
+      [40, 120, 280].forEach((ms) => {
+        setTimeout(() => {
+          run();
+          const targets = visualEl
+            ? [visualEl]
+            : [...document.querySelectorAll('.visual-line')];
+          if (targets.some((el) => balloonsStillClash(el))) run();
+        }, ms);
+      });
     });
   });
 }
