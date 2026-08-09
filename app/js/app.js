@@ -347,14 +347,26 @@ function balloonChipClass(raw) {
   }
 }
 
+/** Keep source order, but always pin <-1>/resets to the right end of the chip row. */
+function orderBalloonTags(tags) {
+  const main = [];
+  const resets = [];
+  for (const raw of tags) {
+    if (classifyEffect(raw).kind === 'reset') resets.push(raw);
+    else main.push(raw);
+  }
+  return main.concat(resets);
+}
+
 function renderBalloon(commentTags) {
   if (!commentTags.length) return '';
-  const label = escapeHtml(commentTags.join(' · '));
-  const parts = commentTags
+  const ordered = orderBalloonTags(commentTags);
+  const label = escapeHtml(ordered.join(' · '));
+  const parts = ordered
     .map((raw, i) => {
       const chip = `<span class="${balloonChipClass(raw)}">${escapeHtml(raw)}</span>`;
       if (i === 0) return chip;
-      return `<span class="fx-chip-dot">·</span>${chip}`;
+      return `<span class="fx-chip-dot" aria-hidden="true">·</span>${chip}`;
     })
     .join('');
   return `<span class="fx-balloon" contenteditable="false" data-balloon="${label}">${parts}</span>`;
