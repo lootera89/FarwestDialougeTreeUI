@@ -2,10 +2,18 @@
 
 Interactive Scratch-style editor for Unreal Engine dialogue data assets.
 
-## Use it
+## Live (GitHub Pages)
+
+**https://lootera89.github.io/FarwestDialougeTreeUI/**
+
+Works with GitHub Pages as a static site. After this merges to `main`:
+
+- Root `index.html` redirects to `/app/` (works with the current “Deploy from branch” setting).
+- Optional: in **Settings → Pages → Build and deployment**, set Source to **GitHub Actions** so `.github/workflows/deploy-pages.yml` publishes `app/` at the site root (no `/app/` in the URL).
+
+## Use it locally
 
 ```bash
-# from repo root — any static server works
 npm start
 # → http://localhost:5173
 ```
