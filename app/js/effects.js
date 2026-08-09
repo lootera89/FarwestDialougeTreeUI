@@ -95,10 +95,12 @@ export function stripTags(tagged) {
 }
 
 /**
- * Map a plain-text index (visible chars only) → index in tagged string
- * at the corresponding insertion point (after any tags that precede that char).
+ * Map a plain-text index (visible chars only) → index in tagged string.
+ * @param {'start'|'end'} edge
+ *   - start/caret: skip tags so the index sits on the target character
+ *   - end (exclusive): sit just after the last included character (before following tags)
  */
-export function plainIndexToTaggedIndex(tagged, plainIndex) {
+export function plainIndexToTaggedIndex(tagged, plainIndex, edge = 'start') {
   const str = tagged ?? '';
   let plain = 0;
   let i = 0;
@@ -112,14 +114,21 @@ export function plainIndexToTaggedIndex(tagged, plainIndex) {
     plain += 1;
     i += 1;
   }
+  if (edge === 'start') {
+    while (i < str.length && str[i] === '<') {
+      const end = str.indexOf('>', i);
+      if (end === -1) break;
+      i = end + 1;
+    }
+  }
   return i;
 }
 
 /** Selection range in plain text → tagged indices [start, end]. */
 export function plainRangeToTaggedRange(tagged, plainStart, plainEnd) {
   return {
-    start: plainIndexToTaggedIndex(tagged, plainStart),
-    end: plainIndexToTaggedIndex(tagged, plainEnd),
+    start: plainIndexToTaggedIndex(tagged, plainStart, 'start'),
+    end: plainIndexToTaggedIndex(tagged, plainEnd, 'end'),
   };
 }
 
@@ -134,19 +143,25 @@ export function applyEffectToSelection(tagged, plainStart, plainEnd, presetKey) 
   if (!preset && presetKey !== 'clear') return tagged;
 
   let text = tagged ?? '';
-  const { start, end } = plainRangeToTaggedRange(text, plainStart, plainEnd);
+  let { start, end } = plainRangeToTaggedRange(text, plainStart, plainEnd);
 
-  // Remove existing tags that sit inside the selection so re-applying doesn't stack.
-  if (end > start && (presetKey === 'clear' || preset?.kind === 'speed')) {
-    const inner = text.slice(start, end);
-    const cleaned = inner.replace(TAG_RE, '');
+  // Absorb adjacent tags so re-applying speed/clear stays idempotent
+  if (end >= start && (presetKey === 'clear' || preset?.kind === 'speed')) {
+    while (start > 0 && text[start - 1] === '>') {
+      const open = text.lastIndexOf('<', start - 1);
+      if (open === -1) break;
+      start = open;
+    }
+    while (end < text.length && text[end] === '<') {
+      const close = text.indexOf('>', end);
+      if (close === -1) break;
+      end = close + 1;
+    }
+    const cleaned = text.slice(start, end).replace(TAG_RE, '');
     text = text.slice(0, start) + cleaned + text.slice(end);
+    // Re-map against cleaned string
+    ({ start, end } = plainRangeToTaggedRange(text, plainStart, plainEnd));
   }
-
-  // Recompute after clean
-  const range = plainRangeToTaggedRange(text, plainStart, plainEnd);
-  const s = range.start;
-  const e = range.end;
 
   if (presetKey === 'clear') {
     return text;
@@ -154,20 +169,18 @@ export function applyEffectToSelection(tagged, plainStart, plainEnd, presetKey) 
 
   if (preset.kind === 'speed') {
     if (plainEnd <= plainStart) {
-      // caret only: insert speed tag at caret
-      return text.slice(0, s) + `<${preset.tag}>` + text.slice(s);
+      return text.slice(0, start) + `<${preset.tag}>` + text.slice(start);
     }
-    const wrapped = `<${preset.tag}>` + text.slice(s, e) + `<-1>`;
-    return text.slice(0, s) + wrapped + text.slice(e);
+    const wrapped = `<${preset.tag}>` + text.slice(start, end) + `<-1>`;
+    return text.slice(0, start) + wrapped + text.slice(end);
   }
 
   if (preset.kind === 'shake' || preset.kind === 'strong') {
-    // Insert before selection; if empty selection, at caret
-    return text.slice(0, s) + `<${preset.tag}>` + text.slice(s);
+    return text.slice(0, start) + `<${preset.tag}>` + text.slice(start);
   }
 
   if (preset.kind === 'reset') {
-    return text.slice(0, s) + `<-1>` + text.slice(s);
+    return text.slice(0, start) + `<-1>` + text.slice(start);
   }
 
   return text;
@@ -175,7 +188,7 @@ export function applyEffectToSelection(tagged, plainStart, plainEnd, presetKey) 
 
 /** Insert raw tag string at plain caret index. */
 export function insertTagAt(tagged, plainIndex, tagInner) {
-  const i = plainIndexToTaggedIndex(tagged ?? '', plainIndex);
+  const i = plainIndexToTaggedIndex(tagged ?? '', plainIndex, 'start');
   return (tagged ?? '').slice(0, i) + `<${tagInner}>` + (tagged ?? '').slice(i);
 }
 

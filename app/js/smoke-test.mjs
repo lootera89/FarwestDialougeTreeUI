@@ -51,9 +51,17 @@ console.assert(stripTags('I see...!<1> <.6>W<-1>e') === 'I see...! We');
 let t = 'Hello world';
 t = applyEffectToSelection(t, 6, 11, 'slow'); // "world"
 console.assert(t === 'Hello <.5>world<-1>', `slow wrap got: ${t}`);
+t = applyEffectToSelection(t, 6, 11, 'slow');
+console.assert(t === 'Hello <.5>world<-1>', `idempotent slow got: ${t}`);
 
 t = applyEffectToSelection('WOOOOO!!', 3, 3, 'strongShake');
 console.assert(t === 'WOO<30>OOO!!', `shake insert got: ${t}`);
+
+const mom = 'Sorry, but my mom would get angry.';
+let m = applyEffectToSelection(mom, 11, 33, 'slow');
+console.assert(m === 'Sorry, but <.5>my mom would get angry<-1>.', m);
+m = applyEffectToSelection(m, 11, 33, 'slow');
+console.assert(m === 'Sorry, but <.5>my mom would get angry<-1>.', `mom idempotent: ${m}`);
 
 console.log('OK — parser + effects smoke tests passed');
 if (warnings.length) console.log('warnings:', warnings);
