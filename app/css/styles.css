@@ -15,7 +15,7 @@
   --fx-slow: #b8f0e0;
   --fx-shake: #ffe08a;
   --fx-strong: #ff9b7a;
-  --fx-orphan: #f3b4b4;
+  --fx-orphan: #c8c4bc;
   --danger: #e05d5d;
   --ok: #3aa76d;
 }
@@ -429,9 +429,9 @@ body { min-height: 100vh; }
   width: 100%;
   min-height: 2.4rem;
   border-radius: 10px;
-  padding: 0.55rem 0.65rem;
+  padding: 1.15rem 0.65rem 0.55rem;
   font-size: 1.05rem;
-  line-height: 1.45;
+  line-height: 1.7;
   background: var(--line);
   color: var(--ink);
   box-shadow: inset 0 0 0 2px rgba(0,0,0,0.04);
@@ -449,66 +449,78 @@ body { min-height: 100vh; }
 
 .fx-plain { background: transparent; }
 
-/* Value chip via ::before so it never enters the editable text */
-.visual-line [data-value]::before {
-  content: attr(data-value);
-  display: inline-block;
-  font-size: 0.62rem;
+/* Comic-style comment floating above the letters — text stays continuous */
+.fx-run {
+  position: relative;
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.fx-run[data-comment]::after,
+.fx-orphan[data-comment]::after {
+  content: attr(data-comment);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% - 0.05em);
+  max-width: min(16rem, 70vw);
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
+  font-size: 0.58rem;
   font-weight: 800;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  line-height: 1;
-  vertical-align: 0.15em;
-  margin-right: 0.28em;
-  padding: 0.18em 0.38em;
-  border-radius: 999px;
-  background: rgba(28, 36, 48, 0.88);
-  color: #fff8ee;
+  line-height: 1.2;
   letter-spacing: 0.02em;
-  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #2a3444;
+  color: #fff8ee;
   pointer-events: none;
+  user-select: none;
+  z-index: 2;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 2px 6px rgba(20, 28, 36, 0.18);
+}
+.fx-run[data-comment]::before,
+.fx-orphan[data-comment]::before {
+  content: "";
+  position: absolute;
+  left: 0.45em;
+  bottom: calc(100% - 0.28em);
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-top-color: #2a3444;
+  pointer-events: none;
+  z-index: 2;
 }
 
-.fx-slow {
-  background: var(--fx-slow);
-  border-radius: 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-.fx-super-slow {
-  background: var(--fx-super-slow);
-  border-radius: 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
+.fx-slow { background: var(--fx-slow); }
+.fx-super-slow { background: var(--fx-super-slow); }
 .fx-shake {
   background: var(--fx-shake);
-  border-radius: 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
   animation: wobble 0.45s ease-in-out infinite;
 }
 .fx-strong {
   background: var(--fx-strong);
-  border-radius: 4px;
   color: #5a1808;
   font-weight: 800;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
   animation: quake 0.28s linear infinite;
 }
 .fx-orphan {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.2em;
-  margin-left: 0.2em;
-  padding: 0.1em 0;
-  border-radius: 4px;
+  display: inline-block;
+  position: relative;
+  width: 0.55em;
+  height: 1em;
+  margin: 0 0.1em;
+  vertical-align: baseline;
+  border-radius: 3px;
   background: var(--fx-orphan);
-  box-shadow: inset 0 0 0 1px rgba(160, 40, 40, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(28, 36, 48, 0.12);
 }
-.fx-orphan::before {
-  background: #a33 !important;
-  content: "∅ " attr(data-value) !important;
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none !important;
 }
 
 @keyframes wobble {

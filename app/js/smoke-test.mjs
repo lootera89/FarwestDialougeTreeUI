@@ -52,7 +52,13 @@ console.assert(segs[1].text === 'OOOO!!' && segs[1].kind === 'strong' && segs[1]
 
 const segs2 = buildVisualSegments('I see...!<1> <.6>W<-1>e');
 console.assert(stripTags('I see...!<1> <.6>W<-1>e') === 'I see...! We');
-console.assert(segs2.some((s) => s.kind === 'superSlow' && s.raw === '.6' && s.text === 'W'));
+const slowRun = segs2.find((s) => s.tags && s.tags.includes('.6'));
+console.assert(slowRun && slowRun.tags.includes('1') && slowRun.tags.includes('.6'), 'cluster tags');
+console.assert(slowRun.text.includes('W'), 'cluster text');
+
+const multi = buildVisualSegments('Hi<30><.5>there');
+const mseg = multi.find((s) => s.text.includes('there'));
+console.assert(mseg && mseg.tags.join(',') === '30,.5', `adjacent tags got ${mseg && mseg.tags}`);
 
 const orphanSegs = buildVisualSegments('Hello<.5>');
 console.assert(orphanSegs.some((s) => s.kind === 'orphan'), 'orphan marker');

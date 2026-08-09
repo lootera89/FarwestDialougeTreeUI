@@ -122,9 +122,9 @@ assert(
   `Line4 not idempotent: ${JSON.stringify(raw4Again)}`
 );
 
-// Value chip present on slow span
-const chip = page.locator(`.visual-line[data-key="${line4Key}"] [data-value=".15"]`);
-assert(await chip.count(), 'missing .15 value chip');
+// Value comment present on slow span (above text, not inline)
+const chip = page.locator(`.visual-line[data-key="${line4Key}"] [data-comment=".15"]`);
+assert(await chip.count(), 'missing .15 comic comment');
 
 // Super slow on a word
 await page.evaluate((key) => {
@@ -159,7 +159,13 @@ await page.evaluate((key) => {
 }, line4Key);
 await page.locator('.stamp[data-effect="superSlow"]').click();
 await page.waitForTimeout(200);
-assert(await page.locator(`.visual-line[data-key="${line4Key}"] [data-value=".5"]`).count(), 'missing .5 chip');
+assert(await page.locator(`.visual-line[data-key="${line4Key}"] [data-comment=".5"]`).count(), 'missing .5 comment');
+
+// Undo / Redo buttons exist
+assert(await page.locator('#btn-undo').count(), 'undo missing');
+assert(await page.locator('#btn-redo').count(), 'redo missing');
+await page.locator('#btn-undo').click();
+await page.waitForTimeout(200);
 
 // Trailing tag blocked
 await line4.click();

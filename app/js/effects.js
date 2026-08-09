@@ -78,65 +78,103 @@ export function stripTrailingTags(tagged) {
 
 /**
  * Build visual segments for display (tags hidden).
- * Each run keeps the tag value that started it so the UI can badge <.5>, <30>, etc.
- * Speed spans until reset / next speed. Shake spans until next tag (visual only).
- * Trailing orphan tags become a zero-width orphan marker segment.
+ * Consecutive tags (only whitespace between) form one cluster — the following
+ * text run carries ALL of those tag values for the overhead comic comment.
+ * Coloring uses the latest speed/shake in the cluster.
+ * Trailing orphan tags become a zero-width orphan marker.
  */
 export function buildVisualSegments(tagged) {
   const tokens = tokenize(tagged);
   const segments = [];
-  let speedKind = null;
-  let speedRaw = null;
-  let shakeKind = null;
-  let shakeRaw = null;
-  let pendingOrphans = [];
 
-  function flushOrphans() {
-    if (!pendingOrphans.length) return;
+  let speedKind = null;
+  let shakeKind = null;
+  let tagCluster = []; // raw values awaiting following text
+  let heldWs = '';
+
+  function applyTagEffects(tags) {
+    for (const raw of tags) {
+      const info = classifyEffect(raw);
+      if (info.kind === 'reset') {
+        speedKind = null;
+        shakeKind = null;
+      } else if (info.kind === 'slow' || info.kind === 'superSlow') {
+        speedKind = info.kind;
+        shakeKind = null;
+      } else if (info.kind === 'shake' || info.kind === 'strong') {
+        shakeKind = info.kind;
+      }
+    }
+  }
+
+  function pushText(text, commentTags) {
+    if (!text && !(commentTags && commentTags.length)) return;
+    const kind = shakeKind || speedKind || 'plain';
+    const tags = commentTags && commentTags.length ? commentTags.slice() : [];
+    const prev = segments[segments.length - 1];
+    const same =
+      prev &&
+      prev.kind === kind &&
+      prev.kind !== 'orphan' &&
+      JSON.stringify(prev.tags || []) === JSON.stringify(tags);
+    if (same && text) {
+      prev.text += text;
+      return;
+    }
     segments.push({
-      text: '',
-      kind: 'orphan',
-      raw: pendingOrphans.join(','),
-      value: null,
-      label: pendingOrphans.map((r) => `<${r}>`).join(''),
+      text: text || '',
+      kind: text ? kind : 'plain',
+      tags,
+      raw: tags.length ? tags.join(' ') : null,
+      value: tags.length ? Number(tags[tags.length - 1]) : null,
     });
-    pendingOrphans = [];
   }
 
   for (const tok of tokens) {
     if (tok.type === 'tag') {
-      pendingOrphans.push(tok.raw);
-      if (tok.kind === 'reset') {
-        speedKind = null;
-        speedRaw = null;
-        shakeKind = null;
-        shakeRaw = null;
-      } else if (tok.kind === 'slow' || tok.kind === 'superSlow') {
-        speedKind = tok.kind;
-        speedRaw = tok.raw;
-        shakeKind = null;
-        shakeRaw = null;
-      } else if (tok.kind === 'shake' || tok.kind === 'strong') {
-        shakeKind = tok.kind;
-        shakeRaw = tok.raw;
-      }
+      tagCluster.push(tok.raw);
       continue;
     }
     if (!tok.value) continue;
-    // Text after tags → those tags are not orphans
-    pendingOrphans = [];
-    const kind = shakeKind || speedKind || 'plain';
-    const raw = shakeRaw || speedRaw || null;
-    const prev = segments[segments.length - 1];
-    if (prev && prev.kind === kind && prev.raw === raw && kind !== 'orphan') {
-      prev.text += tok.value;
+
+    const onlyWs = /^\s*$/.test(tok.value);
+    if (onlyWs && tagCluster.length) {
+      heldWs += tok.value;
+      continue;
+    }
+
+    if (tagCluster.length) {
+      const comments = tagCluster.slice();
+      applyTagEffects(tagCluster);
+      tagCluster = [];
+      const text = heldWs + tok.value;
+      heldWs = '';
+      pushText(text, comments);
     } else {
-      segments.push({ text: tok.value, kind, raw, value: raw != null ? Number(raw) : null });
+      if (heldWs) {
+        pushText(heldWs, []);
+        heldWs = '';
+      }
+      pushText(tok.value, []);
     }
   }
 
-  flushOrphans();
-  if (!segments.length) segments.push({ text: '', kind: 'plain', raw: null, value: null });
+  if (heldWs) pushText(heldWs, []);
+
+  if (tagCluster.length) {
+    // Orphans: tags with no following letters
+    applyTagEffects(tagCluster);
+    segments.push({
+      text: '',
+      kind: 'orphan',
+      tags: tagCluster.slice(),
+      raw: tagCluster.join(' '),
+      label: tagCluster.map((r) => `<${r}>`).join(''),
+      value: null,
+    });
+  }
+
+  if (!segments.length) segments.push({ text: '', kind: 'plain', tags: [], raw: null, value: null });
   return segments;
 }
 
