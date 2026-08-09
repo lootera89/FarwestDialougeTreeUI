@@ -173,9 +173,9 @@ body { min-height: 100vh; }
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  padding-bottom: 0.65rem;
-  margin-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(28, 36, 48, 0.1);
+  padding-top: 0.75rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid rgba(28, 36, 48, 0.1);
 }
 .file-actions {
   display: grid;
@@ -184,24 +184,23 @@ body { min-height: 100vh; }
 }
 .file-btn {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 12px;
-  padding: 0.55rem 0.65rem;
+  padding: 0.6rem 0.65rem;
   background: #eef3f0;
   color: var(--ink);
   cursor: pointer;
   font: inherit;
+  font-weight: 800;
+  font-size: 0.92rem;
   box-shadow: 0 3px 0 rgba(28, 36, 48, 0.1);
   transition: transform 0.1s ease, filter 0.1s ease;
   min-width: 0;
 }
 .file-btn:hover { filter: brightness(1.03); transform: translateY(-1px); }
 .file-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(28, 36, 48, 0.1); }
-.file-btn strong { font-size: 0.92rem; }
-.file-btn small { color: var(--ink-soft); font-size: 0.72rem; }
 #btn-quick-paste {
   background: #e7eef8;
 }
