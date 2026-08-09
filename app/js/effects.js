@@ -77,10 +77,11 @@ export function stripTrailingTags(tagged) {
 }
 
 /**
- * Build visual segments for display (tags hidden).
+ * Build visual segments for display (tags hidden from the letter stream).
  * Consecutive tags (only whitespace between) form one cluster — the following
- * text run carries ALL of those tag values for the overhead comic comment.
- * Coloring uses the latest speed/shake in the cluster.
+ * text run carries EVERY tag in that cluster for the overhead comic comment
+ * (including <-1> resets). Highlight uses the last non-reset effect in the
+ * cluster so tags that are immediately reset still leave a visible mark.
  * Trailing orphan tags become a zero-width orphan marker.
  */
 export function buildVisualSegments(tagged) {
@@ -107,16 +108,36 @@ export function buildVisualSegments(tagged) {
     }
   }
 
+  /** Last speed/shake in a cluster (ignores resets) — for highlight visibility. */
+  function peakVisualKind(tags) {
+    let peak = null;
+    for (const raw of tags) {
+      const info = classifyEffect(raw);
+      if (info.kind === 'reset') continue;
+      if (
+        info.kind === 'slow' ||
+        info.kind === 'superSlow' ||
+        info.kind === 'shake' ||
+        info.kind === 'strong'
+      ) {
+        peak = info.kind;
+      }
+    }
+    return peak;
+  }
+
   function pushText(text, commentTags) {
     if (!text && !(commentTags && commentTags.length)) return;
-    const kind = shakeKind || speedKind || 'plain';
     const tags = commentTags && commentTags.length ? commentTags.slice() : [];
+    const kind = shakeKind || speedKind || 'plain';
     const prev = segments[segments.length - 1];
+    // Never merge a tagged run into a neighbor — every tag cluster stays its own spot
     const same =
       prev &&
+      !tags.length &&
+      !(prev.tags && prev.tags.length) &&
       prev.kind === kind &&
-      prev.kind !== 'orphan' &&
-      JSON.stringify(prev.tags || []) === JSON.stringify(tags);
+      prev.kind !== 'orphan';
     if (same && text) {
       prev.text += text;
       return;
@@ -128,6 +149,39 @@ export function buildVisualSegments(tagged) {
       raw: tags.length ? tags.join(' ') : null,
       value: tags.length ? Number(tags[tags.length - 1]) : null,
     });
+  }
+
+  function flushCluster(followingText) {
+    const comments = tagCluster.slice();
+    tagCluster = [];
+    const peak = peakVisualKind(comments);
+    const endsReset =
+      comments.length > 0 &&
+      classifyEffect(comments[comments.length - 1]).kind === 'reset';
+
+    applyTagEffects(comments);
+
+    const text = heldWs + followingText;
+    heldWs = '';
+
+    // Cluster ends with reset → engine state is plain, but still mark the
+    // first visible character with the last effect so the spot is never blank.
+    if (endsReset && peak && text.length) {
+      const first = text.search(/\S/);
+      const markAt = first === -1 ? 0 : first;
+      if (markAt > 0) pushText(text.slice(0, markAt), []);
+      segments.push({
+        text: text[markAt],
+        kind: peak,
+        tags: comments,
+        raw: comments.join(' '),
+        value: Number(comments[comments.length - 1]),
+      });
+      if (markAt + 1 < text.length) pushText(text.slice(markAt + 1), []);
+      return;
+    }
+
+    pushText(text, comments);
   }
 
   for (const tok of tokens) {
@@ -144,12 +198,7 @@ export function buildVisualSegments(tagged) {
     }
 
     if (tagCluster.length) {
-      const comments = tagCluster.slice();
-      applyTagEffects(tagCluster);
-      tagCluster = [];
-      const text = heldWs + tok.value;
-      heldWs = '';
-      pushText(text, comments);
+      flushCluster(tok.value);
     } else {
       if (heldWs) {
         pushText(heldWs, []);
@@ -159,10 +208,13 @@ export function buildVisualSegments(tagged) {
     }
   }
 
-  if (heldWs) pushText(heldWs, []);
+  if (tagCluster.length && heldWs) {
+    flushCluster('');
+  } else if (heldWs) {
+    pushText(heldWs, []);
+  }
 
   if (tagCluster.length) {
-    // Orphans: tags with no following letters
     applyTagEffects(tagCluster);
     segments.push({
       text: '',

@@ -682,8 +682,8 @@ body { min-height: 100vh; }
 }
 .fx-chip-reset,
 .fx-chip-unknown {
-  background: #d7d2c8;
-  color: #3a4250;
+  background: #5c6570;
+  color: #fff8ee;
 }
 
 .fx-run {
