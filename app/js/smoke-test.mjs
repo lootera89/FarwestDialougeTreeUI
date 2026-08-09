@@ -54,6 +54,14 @@ console.assert(
   '-1 must not sit on a separate overlapping balloon'
 );
 
+// Even if a reset is embedded mid-cluster in the raw string, balloons pin it right
+const midReset = buildVisualSegments('Hi<1><-1><.6>there');
+const midHost = midReset.find((s) => s.tags?.includes('1'));
+console.assert(
+  midHost && midHost.tags.join(',') === '1,.6,-1',
+  `mid-cluster reset must pin right, got ${midHost && midHost.tags}`
+);
+
 const pause = buildVisualSegments('thinking...<.5> <-1>I never');
 const marked = pause.find((s) => s.tags.includes('.5') && s.tags.includes('-1'));
 console.assert(marked && marked.kind === 'superSlow', `reset-ending cluster should mark: ${JSON.stringify(marked)}`);

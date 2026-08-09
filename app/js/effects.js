@@ -126,6 +126,17 @@ export function buildVisualSegments(tagged) {
     return peak;
   }
 
+  /** Non-reset tags keep source order; resets always sit on the right. */
+  function pinResetsRight(tags) {
+    const main = [];
+    const resets = [];
+    for (const raw of tags) {
+      if (classifyEffect(raw).kind === 'reset') resets.push(raw);
+      else main.push(raw);
+    }
+    return main.concat(resets);
+  }
+
   function pushText(text, commentTags) {
     if (!text && !(commentTags && commentTags.length)) return;
     const tags = commentTags && commentTags.length ? commentTags.slice() : [];
@@ -159,7 +170,7 @@ export function buildVisualSegments(tagged) {
       if (classifyEffect(raw).kind !== 'reset') break;
       const host = [...segments].reverse().find((s) => s.tags && s.tags.length);
       if (host) {
-        host.tags.push(raw);
+        host.tags = pinResetsRight([...host.tags, raw]);
         host.raw = host.tags.join(' ');
         host.value = Number(raw);
       } else {
@@ -208,12 +219,21 @@ export function buildVisualSegments(tagged) {
       if (endsReset && peak && text.length) {
         const first = text.search(/\S/);
         const markAt = first === -1 ? 0 : first;
-        if (markAt > 0) pushText(text.slice(0, markAt), []);
+        if (markAt > 0) {
+          // Leading whitespace must stay plain — applyTagEffects already ran
+          const savedSpeed = speedKind;
+          const savedShake = shakeKind;
+          speedKind = null;
+          shakeKind = null;
+          pushText(text.slice(0, markAt), []);
+          speedKind = savedSpeed;
+          shakeKind = savedShake;
+        }
         segments.push({
           text: text[markAt],
           kind: peak,
-          tags: comments.slice(),
-          raw: comments.join(' '),
+          tags: pinResetsRight(comments.slice()),
+          raw: pinResetsRight(comments).join(' '),
           value: Number(comments[comments.length - 1]),
         });
         if (markAt + 1 < text.length) pushText(text.slice(markAt + 1), []);
@@ -221,10 +241,16 @@ export function buildVisualSegments(tagged) {
         // Keep inter-tag whitespace outside the balloon host so chips sit on the letter
         const first = text.search(/\S/);
         if (first > 0) {
+          const savedSpeed = speedKind;
+          const savedShake = shakeKind;
+          speedKind = null;
+          shakeKind = null;
           pushText(text.slice(0, first), []);
-          pushText(text.slice(first), comments);
+          speedKind = savedSpeed;
+          shakeKind = savedShake;
+          pushText(text.slice(first), pinResetsRight(comments));
         } else {
-          pushText(text, comments);
+          pushText(text, pinResetsRight(comments));
         }
       }
 

@@ -604,15 +604,16 @@ body { min-height: 100vh; }
   width: 100%;
   min-height: 2.4rem;
   border-radius: 10px;
-  padding: 1.7rem 0.65rem 0.55rem;
+  padding: var(--balloon-stack-pad, 2rem) 0.65rem 0.55rem;
   font-size: 1.05rem;
-  line-height: 1.9;
+  line-height: 2;
   background: var(--line);
   color: var(--ink);
   box-shadow: inset 0 0 0 2px rgba(0,0,0,0.04);
   cursor: text;
   white-space: pre-wrap;
   word-break: break-word;
+  transition: padding-top 0.12s ease;
 }
 .visual-line:focus {
   outline: 3px solid rgba(28, 36, 48, 0.25);
@@ -632,15 +633,15 @@ body { min-height: 100vh; }
 /* Real balloon above letters — never participates in text layout */
 .fx-balloon {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 3px);
+  left: 0;
+  bottom: calc(100% + 4px + var(--balloon-lift, 0px));
   z-index: 5;
   display: inline-flex;
   align-items: center;
-  gap: 0.22em;
-  padding: 0;
+  gap: 0.7em;
+  padding: 0.14em 0.12em;
   border-radius: 7px;
-  font-size: 0.58rem;
+  font-size: 0.64rem;
   font-weight: 800;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   line-height: 1.15;
@@ -651,7 +652,8 @@ body { min-height: 100vh; }
   pointer-events: none;
   user-select: none;
   background: transparent;
-  transform: translateX(-50%);
+  transform: none;
+  transition: bottom 0.12s ease;
 }
 .fx-balloon::after {
   display: none;
@@ -659,8 +661,8 @@ body { min-height: 100vh; }
 .fx-chip {
   display: inline-block;
   flex: 0 0 auto;
-  padding: 0.16em 0.45em;
-  border-radius: 5px;
+  padding: 0.22em 0.6em;
+  border-radius: 6px;
   color: #1c2430;
   box-shadow: 0 1px 3px rgba(20, 28, 36, 0.16);
 }
@@ -669,14 +671,15 @@ body { min-height: 100vh; }
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  min-width: 0.9em;
-  height: 1.2em;
-  padding: 0 0.28em;
+  min-width: 1.05em;
+  height: 1.3em;
+  padding: 0 0.35em;
   border-radius: 999px;
-  background: #e4e7ec;
-  color: #6b7582;
+  background: #f1f3f6;
+  color: #9aa3b0;
   font-weight: 800;
-  font-size: 0.95em;
+  font-size: 1em;
+  box-shadow: none;
 }
 .fx-chip-slow { background: var(--fx-slow); }
 .fx-chip-super-slow { background: var(--fx-super-slow); }
